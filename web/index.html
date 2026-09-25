@@ -43,6 +43,13 @@ th{font-weight:600;background:#f8f9fa}
   <span id="keyStatus" style="font-size:12px;color:#5f6368"></span>
 </div>
 
+<!-- 统计概览 -->
+<div class="card">
+  <div class="flex-between"><h2>统计概览</h2><button class="btn" onclick="loadStats()">刷新</button></div>
+  <div id="statsBody"><div class="empty">点击"刷新"加载统计</div></div>
+  <div style="font-size:11px;color:#5f6368;margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
+</div>
+
 <!-- 账号列表 -->
 <div class="card">
   <div class="flex-between"><h2>账号列表</h2><button class="btn" onclick="loadAccounts()">刷新</button></div>
@@ -151,6 +158,27 @@ async function loadModels(){
   h+='</table>';document.getElementById('modelsBody').innerHTML=h;
 }
 
+async function loadStats(){
+  const rs=await Promise.all([api('/accounts'),api('/credits-ledger'),api('/last-checkin')]);
+  const ad=rs[0];if(!ad)return;
+  const led=(rs[1]&&rs[1].entries)||[];
+  const recs=(rs[2]&&rs[2].last_checkins)||[];
+  const a=ad.accounts||[];
+  const cn=a.filter(x=>x.realm==='cn').length;
+  const today=new Date();
+  const todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  const signed=a.filter(x=>(x.last_checkin||'').slice(0,10)===todayStr).length;
+  const bySource={};
+  led.forEach(e=>{const s=e.source||'?';bySource[s]=(bySource[s]||0)+1});
+  const srcParts=Object.keys(bySource).sort().map(s=>esc(s)+' '+bySource[s]).join(' / ');
+  let h='<table><tr><th>指标</th><th>值</th></tr>';
+  h+='<tr><td>账号总数</td><td><strong>'+a.length+'</strong>（CN '+cn+' / Global '+(a.length-cn)+'）</td></tr>';
+  h+='<tr><td>今日已签到</td><td><strong>'+signed+'</strong> / '+a.length+'</td></tr>';
+  h+='<tr><td>Credits 流水</td><td>'+led.length+' 条'+(srcParts?'（'+srcParts+'）':'')+'</td></tr>';
+  h+='<tr><td>签到记录</td><td>'+recs.length+' 条</td></tr>';
+  h+='</table>';document.getElementById('statsBody').innerHTML=h;
+}
+
 async function refreshQuota(){
   const idx=document.getElementById('quotaAuthIdx').value;
   if(!idx){toast('请选择账号','err');return}
@@ -205,8 +233,8 @@ async function loadCreditsLedger(){
   h+='</table>';document.getElementById('creditsLedgerBody').innerHTML=h;
 }
 
-// 初始加载账号与模型
-if(savedKey){loadAccounts();loadModels()}
+// 初始加载统计、账号与模型
+if(savedKey){loadStats();loadAccounts();loadModels()}
 </script>
 </body>
 </html>
