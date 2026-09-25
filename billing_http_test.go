@@ -7,7 +7,7 @@ import (
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
 )
 
-// --- billing 域/头回归（对照 reference：chat=copilot、billing=codebuddy.cn 分域 + BillingHeaders） ---
+// --- billing 域/头回归（对照 reference BillingHeaders；CN 现同域 www.workbuddy.cn） ---
 
 func TestDoBillingJSON_UsesBillingDomainAndHeaders(t *testing.T) {
 	var gotReq *http.Request
@@ -30,8 +30,8 @@ func TestDoBillingJSON_UsesBillingDomainAndHeaders(t *testing.T) {
 	if gotReq == nil {
 		t.Fatal("no request captured")
 	}
-	if gotReq.URL.Host != "www.codebuddy.cn" {
-		t.Fatalf("host=%q, want www.codebuddy.cn", gotReq.URL.Host)
+	if gotReq.URL.Host != "www.workbuddy.cn" {
+		t.Fatalf("host=%q, want www.workbuddy.cn", gotReq.URL.Host)
 	}
 	if gotReq.Header.Get("Authorization") != "Bearer tk123" {
 		t.Fatalf("authorization=%q", gotReq.Header.Get("Authorization"))

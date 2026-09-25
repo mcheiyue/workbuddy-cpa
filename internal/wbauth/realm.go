@@ -8,21 +8,22 @@ const (
 	RealmGlobal = "global"
 )
 
-// 端点基础 URL。
+// 端点基础 URL。国内统一走 www.workbuddy.cn（2026-09-26 切换：state/chat/billing 同域
+// 实测可用；旧入口 copilot.tencent.com + www.codebuddy.cn 为回退点）。
 const (
-	BaseCN     = "https://copilot.tencent.com"
+	BaseCN     = "https://www.workbuddy.cn"
 	BaseGlobal = "https://www.workbuddy.ai"
 )
 
 // Origin/Referer 头值。
 const (
-	OriginCN     = "https://www.codebuddy.cn"
+	OriginCN     = "https://www.workbuddy.cn"
 	OriginGlobal = "https://www.workbuddy.ai"
 )
 
-// Billing base URL（计费域与 chat 域分离，逐字对照 reference client.go 默认值）。
+// Billing base URL（按 realm 选；CN 与 chat 同域）。
 const (
-	BaseBillingCN     = "https://www.codebuddy.cn"
+	BaseBillingCN     = "https://www.workbuddy.cn"
 	BaseBillingGlobal = "https://www.workbuddy.ai"
 )
 

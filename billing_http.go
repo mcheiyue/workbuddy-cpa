@@ -14,8 +14,8 @@ import (
 const billingUA = "WorkBuddy/5.5.4"
 
 // doBillingJSON 发 billing 域请求并解信封。
-// base 与请求头逐字对照 reference client.go.New/BillingHeaders：
-// BillingBaseCN=www.codebuddy.cn（与 chat 域 copilot.tencent.com 不同域）。
+// base 与请求头对照 reference client.go.New/BillingHeaders：
+// CN 现与 chat 同域 www.workbuddy.cn（2026-09-26 切换，旧 codebuddy.cn 为回退点）。
 func doBillingJSON(client *http.Client, realm string, cred wbauth.Credential, method, path string, body any) (json.RawMessage, error) {
 	var bodyReader io.Reader
 	if body != nil {

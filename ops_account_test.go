@@ -110,8 +110,8 @@ func TestRunActivity_PostsChatRequestSend(t *testing.T) {
 	if gotReq == nil {
 		t.Fatal("no upstream request")
 	}
-	if gotReq.URL.Host != "www.codebuddy.cn" {
-		t.Fatalf("host=%q, want www.codebuddy.cn", gotReq.URL.Host)
+	if gotReq.URL.Host != "www.workbuddy.cn" {
+		t.Fatalf("host=%q, want www.workbuddy.cn", gotReq.URL.Host)
 	}
 	if gotReq.URL.Path != "/v2/report" {
 		t.Fatalf("path=%q, want /v2/report", gotReq.URL.Path)

@@ -40,8 +40,8 @@ func TestClaimCredits_TierAvailable(t *testing.T) {
 	if gotReq == nil {
 		t.Fatal("no upstream request")
 	}
-	if gotReq.URL.Host != "copilot.tencent.com" {
-		t.Fatalf("host=%q, want copilot.tencent.com", gotReq.URL.Host)
+	if gotReq.URL.Host != "www.workbuddy.cn" {
+		t.Fatalf("host=%q, want www.workbuddy.cn", gotReq.URL.Host)
 	}
 	// Verify redeem body
 	if gotReq.Method == http.MethodPost {

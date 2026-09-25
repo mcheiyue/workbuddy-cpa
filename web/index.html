@@ -55,7 +55,7 @@ th{font-weight:600;background:var(--bg)}
 
 <!-- 账号列表 -->
 <div class="card">
-  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
+  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
 </div>
 
@@ -145,10 +145,12 @@ async function startLogin(){
   if(pollTimer){clearInterval(pollTimer);pollTimer=null}
   const btn=document.getElementById('loginBtn');btn.disabled=true;
   try{
-    const body=await authApi('/workbuddy-auth-url');
-    if(!body||!body.url){toast(body&&body.error?'启动登录失败: '+body.error:'无法获取授权链接','err');return}
+    const sel=document.getElementById('loginRealm');
+    const realm=(sel&&sel.value==='global')?'global':'cn';
+    const body=await authApi('/workbuddy-auth-url?realm='+encodeURIComponent(realm));
+    if(!body||!body.url){toast(body&&body.error?'启动登录失败: '+body.error:'无法获取授权链接','err');btn.disabled=false;return}
     window.open(body.url,'_blank','noopener');
-    toast('等待 WorkBuddy 授权…','info');
+    toast(realm==='global'?'等待 WorkBuddy 国际版授权…':'等待 WorkBuddy 国内版授权…','info');
     const state=body.state;
     pollTimer=setInterval(async()=>{
       try{

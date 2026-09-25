@@ -92,7 +92,7 @@ func TestBuildChatHeaders_CN(t *testing.T) {
 	assert("X-Conversation-ID", "conv1")
 	assert("X-B3-Sampled", "1")
 	assert("X-Device-Token", "d1")
-	assert("Origin", "https://www.codebuddy.cn")
+	assert("Origin", "https://www.workbuddy.cn")
 	if !strings.Contains(h.Get("User-Agent"), "WorkBuddy/") {
 		t.Error("UA missing WorkBuddy/")
 	}

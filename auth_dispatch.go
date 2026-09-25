@@ -89,10 +89,12 @@ func handleAuthLoginStart(ctx context.Context, raw []byte) (pluginapi.AuthLoginS
 	if err != nil {
 		return pluginapi.AuthLoginStartResponse{}, err
 	}
+	// 回填 realm：宿主把它存进 OAuth session，Poll 时原样带回，保证轮询与 start 同域。
 	return pluginapi.AuthLoginStartResponse{
 		Provider: wbauth.Provider,
 		URL:      start.AuthURL,
 		State:    start.State,
+		Metadata: map[string]any{"realm": realm},
 	}, nil
 }
 

@@ -12,7 +12,7 @@ const (
 	defaultClientVersion = "5.5.4"
 	defaultCliVersion    = "2.137.1"
 	chatCompletionsPath  = "/v2/chat/completions"
-	originRefererCN      = "https://www.codebuddy.cn"
+	originRefererCN      = "https://www.workbuddy.cn"
 	originRefererGlobal  = "https://www.workbuddy.ai"
 )
 
