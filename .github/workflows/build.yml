@@ -1,0 +1,63 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./... -shuffle=on -count=1
+      - run: CGO_ENABLED=1 go test -race ./...
+      - run: go vet ./...
+
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: mkdir -p dist/linux/${{ matrix.arch }}
+      - run: CGO_ENABLED=1 go build -buildmode=c-shared -trimpath -ldflags='-s -w' -o dist/linux/${{ matrix.arch }}/workbuddy.so .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workbuddy-linux-${{ matrix.arch }}
+          path: dist/linux/${{ matrix.arch }}/workbuddy.so
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: workbuddy-linux-*
+          merge-multiple: false
+      - run: tar -czf workbuddy-${GITHUB_REF_NAME}.tar.gz -C dist .
+      - run: sha256sum workbuddy-${GITHUB_REF_NAME}.tar.gz > workbuddy-${GITHUB_REF_NAME}.tar.gz.sha256
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            workbuddy-${{ github.ref_name }}.tar.gz
+            workbuddy-${{ github.ref_name }}.tar.gz.sha256
