@@ -37,6 +37,7 @@ type opsDailyTask struct {
 var opsDailyTasks = []opsDailyTask{
 	{name: "checkin", hour: 9, run: (*opsTicker).runCheckin},
 	{name: "activity", hour: 10, run: (*opsTicker).runActivity},
+	{name: "claim", hour: 11, run: (*opsTicker).runClaimCredits},
 	{name: "keepalive", hour: 22, run: (*opsTicker).runKeepalive},
 }
 
