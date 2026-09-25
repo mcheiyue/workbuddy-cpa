@@ -136,6 +136,9 @@ func handleAuthRefresh(ctx context.Context, raw []byte) (pluginapi.AuthRefreshRe
 	if err != nil {
 		return pluginapi.AuthRefreshResponse{}, err
 	}
+	// 与 ticker 保活共锁：防同一 refresh_token 并发轮换。
+	unlock := lockAuthRefresh(req.AuthID)
+	defer unlock()
 	client, err := newHostHTTPClient(req.HostCallbackID)
 	if err != nil {
 		return pluginapi.AuthRefreshResponse{}, err

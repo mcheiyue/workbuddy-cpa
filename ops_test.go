@@ -102,21 +102,6 @@ func TestOpsTicker_TickHookFires(t *testing.T) {
 	}
 }
 
-// --- Jitter bounds ---
-
-func TestOpsTicker_NextDayTickBounds(t *testing.T) {
-	ticker := &opsTicker{now: time.Now}
-	for range 100 {
-		d := ticker.nextDayTick()
-		if d < 23*time.Hour+30*time.Minute {
-			t.Fatalf("tick too short: %v", d)
-		}
-		if d > 24*time.Hour+30*time.Minute {
-			t.Fatalf("tick too long: %v", d)
-		}
-	}
-}
-
 func TestEnsureOpsStarted_Idempotent(t *testing.T) {
 	savedOps := ops
 	defer func() { ops = savedOps }()

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -108,6 +107,8 @@ type accountInfo struct {
 	realm      string
 	cred       wbauth.Credential
 	callbackID string
+	fileName   string // 物理 auth 文件名（.json），保活写回用；运行时注入为 ""
+	authID     string // 宿主 auth.ID，refresh 互斥键
 }
 
 func (t *opsTicker) discoverCNAccounts() []accountInfo {
@@ -154,40 +155,11 @@ func (t *opsTicker) discoverCNAccounts() []accountInfo {
 			realm:      realm,
 			cred:       cred,
 			callbackID: f.AuthIndex,
+			fileName:   f.Name,
+			authID:     f.ID,
 		})
 	}
 	return out
-}
-
-func (t *opsTicker) accountLoop(acct accountInfo) {
-	defer t.wg.Done()
-	jitter := time.Duration(rand.Intn(30)) * time.Minute
-	timer := time.NewTimer(jitter)
-	select {
-	case <-t.stopCh:
-		timer.Stop()
-		return
-	case <-timer.C:
-	}
-	for {
-		t.runCheckin(acct)
-		nextTick := t.nextDayTick()
-		timer.Reset(nextTick)
-		select {
-		case <-t.stopCh:
-			timer.Stop()
-			return
-		case <-timer.C:
-		}
-	}
-}
-
-func (t *opsTicker) nextDayTick() time.Duration {
-	d := 24*time.Hour + time.Duration(rand.Intn(60)-30)*time.Minute
-	if d < time.Hour {
-		d = time.Hour
-	}
-	return d
 }
 
 func (t *opsTicker) runCheckin(acct accountInfo) {
