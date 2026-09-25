@@ -16,19 +16,19 @@ func TestRegistrationSchema6WorkBuddyCapabilities(t *testing.T) {
 			Repo    string `json:"GitHubRepository"`
 		} `json:"metadata"`
 		Capabilities struct {
-			AuthProvider            bool     `json:"auth_provider"`
-			ModelProvider           bool     `json:"model_provider"`
-			Executor                bool     `json:"executor"`
-			ManagementAPI           bool     `json:"management_api"`
-			QuotaProvider           bool     `json:"quota_provider"`
-			UsagePlugin             bool     `json:"usage_plugin"`
-			RequestLifecyclePlugin  bool     `json:"request_lifecycle_plugin"`
-			ExecutorModelScope      string   `json:"executor_model_scope"`
-			ExecutorInputFormats    []string `json:"executor_input_formats"`
-			ExecutorOutputFormats   []string `json:"executor_output_formats"`
-			ModelRouter             *bool    `json:"model_router,omitempty"`
-			RequestInterceptor      *bool    `json:"request_interceptor,omitempty"`
-			Scheduler               *bool    `json:"scheduler,omitempty"`
+			AuthProvider           bool     `json:"auth_provider"`
+			ModelProvider          bool     `json:"model_provider"`
+			Executor               bool     `json:"executor"`
+			ManagementAPI          bool     `json:"management_api"`
+			QuotaProvider          bool     `json:"quota_provider"`
+			UsagePlugin            bool     `json:"usage_plugin"`
+			RequestLifecyclePlugin bool     `json:"request_lifecycle_plugin"`
+			ExecutorModelScope     string   `json:"executor_model_scope"`
+			ExecutorInputFormats   []string `json:"executor_input_formats"`
+			ExecutorOutputFormats  []string `json:"executor_output_formats"`
+			ModelRouter            *bool    `json:"model_router,omitempty"`
+			RequestInterceptor     *bool    `json:"request_interceptor,omitempty"`
+			Scheduler              *bool    `json:"scheduler,omitempty"`
 		} `json:"capabilities"`
 	}
 
@@ -48,8 +48,8 @@ func TestRegistrationSchema6WorkBuddyCapabilities(t *testing.T) {
 	if reg.Metadata.Name != "workbuddy" {
 		t.Fatalf("Name=%q, want %q", reg.Metadata.Name, "workbuddy")
 	}
-	if reg.Metadata.Version != "0.1.0" {
-		t.Fatalf("Version=%q, want %q", reg.Metadata.Version, "0.1.0")
+	if reg.Metadata.Version != "0.1.1" {
+		t.Fatalf("Version=%q, want %q", reg.Metadata.Version, "0.1.1")
 	}
 	if reg.Metadata.Author != "mcheiyue" {
 		t.Fatalf("Author=%q, want %q", reg.Metadata.Author, "mcheiyue")
@@ -84,6 +84,9 @@ func TestRegistrationSchema6WorkBuddyCapabilities(t *testing.T) {
 	if len(reg.Capabilities.ExecutorOutputFormats) != 1 || reg.Capabilities.ExecutorOutputFormats[0] != "chat-completions" {
 		t.Fatalf("executor_output_formats=%v, want [chat-completions]", reg.Capabilities.ExecutorOutputFormats)
 	}
+	if reg.Capabilities.Scheduler == nil || !*reg.Capabilities.Scheduler {
+		t.Fatal("scheduler should be true")
+	}
 }
 
 func TestRegistrationDoesNotDeclareUnwantedCapabilities(t *testing.T) {
@@ -108,10 +111,14 @@ func TestRegistrationDoesNotDeclareUnwantedCapabilities(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Then: must not declare scheduler, model_router, request_interceptor.
-	for _, forbidden := range []string{"scheduler", "model_router", "request_interceptor"} {
+	// Then: must not declare model_router, request_interceptor.
+	for _, forbidden := range []string{"model_router", "request_interceptor"} {
 		if _, exists := caps[forbidden]; exists {
 			t.Fatalf("capabilities must not contain %q", forbidden)
 		}
+	}
+	// Then: must declare scheduler.
+	if _, exists := caps["scheduler"]; !exists {
+		t.Fatal("capabilities must contain scheduler")
 	}
 }

@@ -72,6 +72,10 @@ func handleQuotaFetch(raw []byte) ([]byte, error) {
 	if size > 0 {
 		fraction = float64(remain) / float64(size)
 	}
+	// Scheduler hook: store per-AuthID credits snapshot for weighted selection.
+	if aid := strings.TrimSpace(req.AuthID); aid != "" {
+		globalSchedulerState.setCredits(aid, float64(remain))
+	}
 	return okEnvelope(pluginapi.QuotaFetchResponse{
 		Summary: []pluginapi.QuotaMetric{
 			{Key: "remain", Label: "剩余额度", Value: float64(remain), Unit: "积分"},
@@ -105,6 +109,6 @@ func tokenScrub(msg string) string {
 }
 
 var (
-	bearerPat    = regexp.MustCompile(`Bearer\s+\S+`)
+	bearerPat     = regexp.MustCompile(`Bearer\s+\S+`)
 	tokenFieldPat = regexp.MustCompile(`(?i)(access[_-]?token|refresh[_-]?token|device[_-]?token)["':=\s]+\S+`)
 )

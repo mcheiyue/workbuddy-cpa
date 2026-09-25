@@ -2,7 +2,7 @@ package main
 
 const (
 	pluginID = "workbuddy"
-	version  = "0.1.0"
+	version  = "0.1.1"
 	author   = "mcheiyue"
 	repoURL  = "https://github.com/mcheiyue/workbuddy-cpa"
 )
@@ -26,6 +26,7 @@ func registration() map[string]any {
 			"quota_provider":           true,
 			"usage_plugin":             true,
 			"request_lifecycle_plugin": true,
+			"scheduler":                true,
 			"executor_model_scope":     "oauth",
 			"executor_input_formats":   []string{"chat-completions"},
 			"executor_output_formats":  []string{"chat-completions"},

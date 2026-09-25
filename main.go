@@ -53,6 +53,10 @@ func handleMethod(method string, raw []byte) ([]byte, error) {
 		pluginabi.MethodQuotaReset:
 		return handleQuotaMethod(method, raw)
 
+	// Scheduler 系列
+	case pluginabi.MethodSchedulerPick:
+		return handleSchedulerMethod(method, raw)
+
 	// Usage（P0 占位）
 	case pluginabi.MethodUsageHandle:
 		return notImplemented(method)
