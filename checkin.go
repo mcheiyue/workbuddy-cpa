@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
 )
 
 // idempotentCodes 幂等/不适用业务码（逐字对照 reference signin/main.go）。
@@ -28,8 +30,8 @@ type checkinResult struct {
 
 // doCheckin 对单个账号执行签到。
 // realm 由 caller 解析后传入，确保打对 base。
-func doCheckin(client *http.Client, realm, accessToken string) error {
-	return dailyCheckin(client, realm, accessToken)
+func doCheckin(client *http.Client, realm string, cred wbauth.Credential) error {
+	return dailyCheckin(client, realm, cred)
 }
 
 // isAlreadyCheckin 报告错误是否表示「已签到/不适用」。

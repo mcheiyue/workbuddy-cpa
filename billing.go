@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -58,8 +56,8 @@ type userResourceResp struct {
 const packageEndLayout = "2006-01-02 15:04:05"
 
 // resourceSummary 查询账号积分套餐聚合口径。
-func resourceSummary(client *http.Client, realm, accessToken string) (remain, used, size int64, packs int, err error) {
-	resp, err := getUserResourceBody(client, realm, accessToken)
+func resourceSummary(client *http.Client, realm string, cred wbauth.Credential) (remain, used, size int64, packs int, err error) {
+	resp, err := getUserResourceBody(client, realm, cred)
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
@@ -85,7 +83,7 @@ func resourceSummary(client *http.Client, realm, accessToken string) (remain, us
 }
 
 // getUserResourceBody 发 get-user-resource 请求并解析响应。
-func getUserResourceBody(client *http.Client, realm, accessToken string) (*userResourceResp, error) {
+func getUserResourceBody(client *http.Client, realm string, cred wbauth.Credential) (*userResourceResp, error) {
 	now := time.Now()
 	body := map[string]any{
 		"PageNumber":               1,
@@ -95,7 +93,7 @@ func getUserResourceBody(client *http.Client, realm, accessToken string) (*userR
 		"PackageEndTimeRangeBegin": now.Format(packageEndLayout),
 		"PackageEndTimeRangeEnd":   now.Add(365 * 101 * 24 * time.Hour).Format(packageEndLayout),
 	}
-	data, err := billingMeterJSON(client, realm, accessToken, http.MethodPost, billingMeterPaths(realm), body)
+	data, err := billingMeterJSON(client, realm, cred, http.MethodPost, billingMeterPaths(realm), body)
 	if err != nil {
 		return nil, err
 	}
@@ -107,16 +105,16 @@ func getUserResourceBody(client *http.Client, realm, accessToken string) (*userR
 }
 
 // dailyCheckin 执行每日签到。
-func dailyCheckin(client *http.Client, realm, accessToken string) error {
-	_, err := billingMeterJSON(client, realm, accessToken, http.MethodPost, checkinMeterPaths(realm), map[string]any{})
+func dailyCheckin(client *http.Client, realm string, cred wbauth.Credential) error {
+	_, err := billingMeterJSON(client, realm, cred, http.MethodPost, checkinMeterPaths(realm), map[string]any{})
 	return err
 }
 
 // billingMeterJSON 按 realm 候选路径发请求，404 时回落下一路径。
-func billingMeterJSON(client *http.Client, realm, accessToken string, method string, paths []string, body any) (json.RawMessage, error) {
+func billingMeterJSON(client *http.Client, realm string, cred wbauth.Credential, method string, paths []string, body any) (json.RawMessage, error) {
 	var lastErr error
 	for i, p := range paths {
-		data, err := doBillingJSON(client, realm, accessToken, method, p, body)
+		data, err := doBillingJSON(client, realm, cred, method, p, body)
 		if err != nil {
 			lastErr = err
 			var ue *upstreamError
@@ -128,47 +126,6 @@ func billingMeterJSON(client *http.Client, realm, accessToken string, method str
 		return data, nil
 	}
 	return nil, lastErr
-}
-
-// doBillingJSON 发请求并解信封。
-func doBillingJSON(client *http.Client, realm, accessToken, method, path string, body any) (json.RawMessage, error) {
-	var bodyReader io.Reader
-	if body != nil {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			return nil, err
-		}
-		bodyReader = bytes.NewReader(raw)
-	}
-	base := wbauth.RealmBase(realm)
-	req, err := http.NewRequest(method, base+path, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Origin", wbauth.RealmOrigin(realm))
-	req.Header.Set("Referer", wbauth.RealmOrigin(realm))
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
-	}
-	if resp.StatusCode >= 400 {
-		return nil, &upstreamError{status: resp.StatusCode, msg: truncateStr(string(raw), 200)}
-	}
-	var env apiEnvelope
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, fmt.Errorf("parse failed: %w", err)
-	}
-	if env.Code != 0 {
-		return nil, &upstreamError{status: resp.StatusCode, code: env.Code, msg: env.Msg}
-	}
-	return env.Data, nil
 }
 
 // upstreamError 带状态码的上游错误。

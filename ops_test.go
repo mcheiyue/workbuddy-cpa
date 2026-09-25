@@ -95,7 +95,7 @@ func TestOpsTicker_TickHookFires(t *testing.T) {
 			callCount.Add(1)
 		},
 	}
-	acct := accountInfo{authIndex: "test1", realm: "cn", accessToken: "tok", callbackID: "test1"}
+	acct := accountInfo{authIndex: "test1", realm: "cn", cred: wbauth.Credential{AccessToken: "tok"}, callbackID: "test1"}
 	ticker.runCheckin(acct)
 	if callCount.Load() != 1 {
 		t.Fatalf("callCount=%d, want 1", callCount.Load())

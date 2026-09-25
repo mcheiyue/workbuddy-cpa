@@ -104,10 +104,10 @@ func (t *opsTicker) spawnTickers() {
 }
 
 type accountInfo struct {
-	authIndex   string
-	realm       string
-	accessToken string
-	callbackID  string
+	authIndex  string
+	realm      string
+	cred       wbauth.Credential
+	callbackID string
 }
 
 func (t *opsTicker) discoverCNAccounts() []accountInfo {
@@ -150,10 +150,10 @@ func (t *opsTicker) discoverCNAccounts() []accountInfo {
 			continue
 		}
 		out = append(out, accountInfo{
-			authIndex:   f.AuthIndex,
-			realm:       realm,
-			accessToken: cred.AccessToken,
-			callbackID:  f.AuthIndex,
+			authIndex:  f.AuthIndex,
+			realm:      realm,
+			cred:       cred,
+			callbackID: f.AuthIndex,
 		})
 	}
 	return out
@@ -207,9 +207,9 @@ func (t *opsTicker) runCheckin(acct accountInfo) {
 		checkErr = err
 		return
 	}
-	checkErr = doCheckin(client, acct.realm, acct.accessToken)
+	checkErr = doCheckin(client, acct.realm, acct.cred)
 	if checkErr == nil || isAlreadyCheckin(checkErr) {
-		remain, _, _, _, qerr := resourceSummary(client, acct.realm, acct.accessToken)
+		remain, _, _, _, qerr := resourceSummary(client, acct.realm, acct.cred)
 		if qerr == nil {
 			globalLedger.append(ledgerEntry{
 				Ts:      t.now(),

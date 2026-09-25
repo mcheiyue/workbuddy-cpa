@@ -176,7 +176,7 @@ func TestBillingMeterJSONFallbackOn404(t *testing.T) {
 
 	client := &http.Client{Transport: &mockTransport{handler: mockHandler}}
 	paths := []string{"/billing/meter/get-user-resource", "/v2/billing/meter/get-user-resource"}
-	_, err := billingMeterJSON(client, "global", "tok", http.MethodPost, paths, map[string]any{})
+	_, err := billingMeterJSON(client, "global", wbauth.Credential{AccessToken: "tok"}, http.MethodPost, paths, map[string]any{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

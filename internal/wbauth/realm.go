@@ -20,6 +20,12 @@ const (
 	OriginGlobal = "https://www.workbuddy.ai"
 )
 
+// Billing base URL（计费域与 chat 域分离，逐字对照 reference client.go 默认值）。
+const (
+	BaseBillingCN     = "https://www.codebuddy.cn"
+	BaseBillingGlobal = "https://www.workbuddy.ai"
+)
+
 // ResolveRealm 归一化 realm：显式非空优先，否则按 domain 推断。
 func ResolveRealm(explicit, domain string) string {
 	if r := strings.TrimSpace(explicit); r == RealmCN || r == RealmGlobal {
@@ -51,4 +57,12 @@ func RealmOrigin(realm string) string {
 		return OriginGlobal
 	}
 	return OriginCN
+}
+
+// BillingBase 返回计费域 base URL（billing 与 chat 不同域）。
+func BillingBase(realm string) string {
+	if realm == RealmGlobal {
+		return BaseBillingGlobal
+	}
+	return BaseBillingCN
 }

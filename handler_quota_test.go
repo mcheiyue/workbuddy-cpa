@@ -112,7 +112,7 @@ func TestQuotaResetReturnsNotSupported(t *testing.T) {
 
 func TestQuotaFetchInvalidCredentialReturnsError(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{
-		"provider":    wbauth.Provider,
+		"provider":     wbauth.Provider,
 		"storage_json": []byte("garbage"),
 	})
 	resp, err := handleMethod("quota.fetch", raw)
@@ -207,7 +207,7 @@ func TestQuotaFetchUpstreamSuccess(t *testing.T) {
 	})
 
 	client := &http.Client{Transport: &mockTransport{handler: mockHandler}}
-	remain, used, size, packs, err := resourceSummary(client, "global", "test-token")
+	remain, used, size, packs, err := resourceSummary(client, "global", wbauth.Credential{AccessToken: "test-token"})
 	if err != nil {
 		t.Fatalf("resourceSummary error: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestQuotaFetchUpstreamErrorMasked(t *testing.T) {
 	})
 
 	client := &http.Client{Transport: &mockTransport{handler: mockHandler}}
-	_, _, _, _, err := resourceSummary(client, "global", "bad-token")
+	_, _, _, _, err := resourceSummary(client, "global", wbauth.Credential{AccessToken: "bad-token"})
 	if err == nil {
 		t.Fatal("expected error from upstream 401")
 	}

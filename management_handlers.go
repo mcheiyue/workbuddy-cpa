@@ -162,7 +162,7 @@ func (s *managementService) quotaRefreshHandler(body []byte) (pluginapi.Manageme
 		return jsonManagementError(http.StatusBadGateway, "host unavailable"), nil
 	}
 	realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
-	remain, used, size, packs, fetchErr := resourceSummary(client, realm, cred.AccessToken)
+	remain, used, size, packs, fetchErr := resourceSummary(client, realm, cred)
 	resp := managementQuotaResp{AuthIndex: request.AuthIndex}
 	if fetchErr != nil {
 		resp.Error = quotaErrorMask(fetchErr)
@@ -223,7 +223,7 @@ func (s *managementService) checkinHandler(body []byte) (pluginapi.ManagementRes
 			continue
 		}
 		realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
-		checkErr := doCheckin(client, realm, cred.AccessToken)
+		checkErr := doCheckin(client, realm, cred)
 		status := checkinStatus(checkErr)
 		resp := managementCheckinResp{
 			UID:     uidTail(cred.UID),
@@ -231,7 +231,7 @@ func (s *managementService) checkinHandler(body []byte) (pluginapi.ManagementRes
 			Message: fmtCheckinResult(status),
 		}
 		if checkErr == nil || isAlreadyCheckin(checkErr) {
-			if remain, _, _, _, qerr := resourceSummary(client, realm, cred.AccessToken); qerr == nil {
+			if remain, _, _, _, qerr := resourceSummary(client, realm, cred); qerr == nil {
 				resp.Remain = &remain
 				RecordManualLedger(file.AuthIndex, remain)
 			}

@@ -59,7 +59,7 @@ func handleQuotaFetch(raw []byte) ([]byte, error) {
 		return errorEnvelope("host_unavailable", err.Error()), nil
 	}
 	realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
-	remain, used, size, packs, fetchErr := resourceSummary(client, realm, cred.AccessToken)
+	remain, used, size, packs, fetchErr := resourceSummary(client, realm, cred)
 	if fetchErr != nil {
 		msg := quotaErrorMask(fetchErr)
 		return okEnvelope(pluginapi.QuotaFetchResponse{
