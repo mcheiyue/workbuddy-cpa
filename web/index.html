@@ -49,6 +49,13 @@ th{font-weight:600;background:#f8f9fa}
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
 </div>
 
+<!-- 模型目录 -->
+<div class="card">
+  <div class="flex-between"><h2>模型目录</h2><button class="btn" onclick="loadModels()">刷新</button></div>
+  <div id="modelsBody"><div class="empty">点击"刷新"加载模型</div></div>
+  <div style="font-size:11px;color:#5f6368;margin-top:8px">来自上游目录，已按调用 ID 去重</div>
+</div>
+
 <!-- 本地签到记录 -->
 <div class="card">
   <div class="flex-between"><h2>本地签到记录</h2><button class="btn" onclick="loadLastCheckin()">刷新</button></div>
@@ -133,6 +140,17 @@ function populateSelects(accounts){
   });
 }
 
+async function loadModels(){
+  const d=await api('/models');if(!d)return;
+  const m=d.models||[];
+  if(!m.length){document.getElementById('modelsBody').innerHTML='<div class="empty">暂无模型</div>';return}
+  let h='<table><tr><th>调用 ID</th><th>展示名</th><th>来源账号</th></tr>';
+  m.forEach(x=>{
+    h+='<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(x.display_name)+'</td><td><code style="font-size:11px">'+esc(x.source)+'</code></td></tr>';
+  });
+  h+='</table>';document.getElementById('modelsBody').innerHTML=h;
+}
+
 async function refreshQuota(){
   const idx=document.getElementById('quotaAuthIdx').value;
   if(!idx){toast('请选择账号','err');return}
@@ -187,8 +205,8 @@ async function loadCreditsLedger(){
   h+='</table>';document.getElementById('creditsLedgerBody').innerHTML=h;
 }
 
-// 初始加载账号
-if(savedKey)loadAccounts();
+// 初始加载账号与模型
+if(savedKey){loadAccounts();loadModels()}
 </script>
 </body>
 </html>
