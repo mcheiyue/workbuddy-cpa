@@ -96,7 +96,7 @@ function toast(msg,type){
   t.className='toast toast-'+(type||'info');t.style.display='block';
   setTimeout(()=>{t.style.display='none'},3000)
 }
-function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;'):''}
+function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'):''}
 
 async function loadAccounts(){
   const d=await api('/accounts');if(!d)return;

@@ -163,7 +163,7 @@ func doBillingJSON(client *http.Client, realm, accessToken, method, path string,
 	}
 	var env apiEnvelope
 	if err := json.Unmarshal(raw, &env); err != nil {
-		return nil, fmt.Errorf("parse failed: %w (body: %s)", err, truncateStr(string(raw), 120))
+		return nil, fmt.Errorf("parse failed: %w", err)
 	}
 	if env.Code != 0 {
 		return nil, &upstreamError{status: resp.StatusCode, code: env.Code, msg: env.Msg}

@@ -235,5 +235,19 @@ func classifyExecutorError(err error) *executorFailure {
 			status: http.StatusGatewayTimeout, cause: err,
 		}
 	}
-	return &executorFailure{code: "upstream_error", message: err.Error(), status: http.StatusBadGateway, cause: err}
+	return &executorFailure{code: "upstream_error", message: scrubErrorMessage(err.Error()), status: http.StatusBadGateway, cause: err}
+}
+
+// scrubErrorMessage 截断并移除可能泄露的敏感信息（Bearer token、Authorization header 等）。
+func scrubErrorMessage(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 200 {
+		s = s[:200]
+	}
+	s = tokenScrub(s)
+	lower := strings.ToLower(s)
+	if i := strings.Index(lower, "authorization"); i >= 0 {
+		s = s[:i] + "[REDACTED]"
+	}
+	return s
 }

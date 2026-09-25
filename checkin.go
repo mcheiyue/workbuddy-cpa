@@ -91,6 +91,7 @@ func checkinErrorMask(err error) string {
 		return ""
 	}
 	msg := err.Error()
+	msg = tokenScrub(msg)
 	if len(msg) > 120 {
 		msg = msg[:120]
 	}

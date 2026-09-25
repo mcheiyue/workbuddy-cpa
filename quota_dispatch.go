@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
@@ -88,9 +89,22 @@ func quotaErrorMask(err error) string {
 		return ""
 	}
 	msg := err.Error()
+	msg = tokenScrub(msg)
 	// 提取 status/code 信息，截断敏感内容。
 	if len(msg) > 120 {
 		msg = msg[:120]
 	}
 	return msg
 }
+
+// tokenScrub 移除消息中可能泄露的 token 类凭据。
+func tokenScrub(msg string) string {
+	msg = bearerPat.ReplaceAllString(msg, "[REDACTED]")
+	msg = tokenFieldPat.ReplaceAllString(msg, "${1}[REDACTED]")
+	return msg
+}
+
+var (
+	bearerPat    = regexp.MustCompile(`Bearer\s+\S+`)
+	tokenFieldPat = regexp.MustCompile(`(?i)(access[_-]?token|refresh[_-]?token|device[_-]?token)["':=\s]+\S+`)
+)
