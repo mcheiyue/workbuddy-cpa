@@ -46,12 +46,12 @@ func handleMethod(method string, raw []byte) ([]byte, error) {
 		pluginabi.MethodExecutorHTTPRequest:
 		return handleExecutorMethod(method, raw)
 
-	// Quota 系列（P0 占位）
+	// Quota 系列
 	case pluginabi.MethodQuotaIdentifier,
 		pluginabi.MethodQuotaDescribe,
 		pluginabi.MethodQuotaFetch,
 		pluginabi.MethodQuotaReset:
-		return notImplemented(method)
+		return handleQuotaMethod(method, raw)
 
 	// Usage（P0 占位）
 	case pluginabi.MethodUsageHandle:

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WorkBuddy 管理面板</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f7fa;color:#333;min-height:100vh}
+.header{background:#1a73e8;color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
+.header h1{font-size:18px;font-weight:600}
+.container{max-width:960px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.12);padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;font-weight:600;margin-bottom:12px;border-bottom:1px solid #e8eaed;padding-bottom:8px}
+.auth-bar{display:flex;gap:8px;align-items:center;margin-bottom:16px}
+.auth-bar input{flex:1;padding:8px 12px;border:1px solid #dadce0;border-radius:6px;font-size:13px}
+.auth-bar button,.btn{padding:8px 16px;border:none;border-radius:6px;background:#1a73e8;color:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.auth-bar button:hover,.btn:hover{background:#1557b0}
+.btn:disabled{background:#94b8e8;cursor:not-allowed}
+.btn-secondary{background:#5f6368}.btn-secondary:hover{background:#3c4043}
+.btn-success{background:#34a853}.btn-success:hover{background:#2d8f47}
+.btn-danger{background:#ea4335}.btn-danger:hover{background:#c5221f}
+.status{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500}
+.status-ok{background:#e6f4ea;color:#137333}
+.status-error{background:#fce8e6;color:#c5221f}
+.status-pending{background:#fef7e0;color:#b06000}
+.status-auth{background:#fce8e6;color:#c5221f}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #e8eaed}
+th{font-weight:600;background:#f8f9fa}
+.empty{text-align:center;padding:24px;color:#5f6368}
+.toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;z-index:999;display:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.toast-ok{background:#34a853}.toast-err{background:#ea4335}.toast-info{background:#1a73e8}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+<div class="header"><h1>WorkBuddy 管理面板</h1></div>
+<div class="container">
+<div class="auth-bar">
+  <input id="key" type="password" placeholder="输入管理密钥" autocomplete="off">
+  <button onclick="saveKey()">保存密钥</button>
+  <span id="keyStatus" style="font-size:12px;color:#5f6368"></span>
+</div>
+
+<!-- 账号列表 -->
+<div class="card">
+  <div class="flex-between"><h2>账号列表</h2><button class="btn" onclick="loadAccounts()">刷新</button></div>
+  <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
+</div>
+
+<!-- 配额刷新 -->
+<div class="card">
+  <div class="flex-between"><h2>配额信息</h2>
+    <div>
+      <select id="quotaAuthIdx" style="padding:6px 8px;border:1px solid #dadce0;border-radius:6px;font-size:13px;margin-right:8px">
+        <option value="">全部账号</option>
+      </select>
+      <button class="btn" onclick="refreshQuota()">刷新配额</button>
+    </div>
+  </div>
+  <div id="quotaBody"><div class="empty">选择账号后点击"刷新配额"</div></div>
+</div>
+
+<!-- 手动签到 -->
+<div class="card">
+  <div class="flex-between"><h2>手动签到</h2>
+    <div>
+      <select id="checkinAuthIdx" style="padding:6px 8px;border:1px solid #dadce0;border-radius:6px;font-size:13px;margin-right:8px">
+        <option value="">全部账号</option>
+      </select>
+      <button class="btn btn-success" onclick="doCheckin()">签到</button>
+    </div>
+  </div>
+  <div id="checkinBody"><div class="empty">选择账号后点击"签到"</div></div>
+</div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+const API='/v0/management/plugins/workbuddy';
+let savedKey=localStorage.getItem('wb_mgmt_key')||'';
+if(savedKey)document.getElementById('key').value=savedKey;
+function getKey(){return savedKey}
+function saveKey(){savedKey=document.getElementById('key').value.trim();localStorage.setItem('wb_mgmt_key',savedKey);toast(savedKey?'密钥已保存':'密钥已清除','info')}
+async function api(path,body){
+  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
+  const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
+  const opt=body?{method:'POST',headers:h,body:JSON.stringify(body)}:{headers:h};
+  try{const r=await fetch(API+path,opt);const t=await r.text();
+    if(r.status===401){toast('管理密钥无效，请检查','err');return null}
+    if(!r.ok){toast('请求失败: '+r.status,'err');return null}
+    return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
+}
+function toast(msg,type){
+  const t=document.getElementById('toast');t.textContent=msg;
+  t.className='toast toast-'+(type||'info');t.style.display='block';
+  setTimeout(()=>{t.style.display='none'},3000)
+}
+function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;'):''}
+
+async function loadAccounts(){
+  const d=await api('/accounts');if(!d)return;
+  const a=d.accounts||[];
+  if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号</div>';return}
+  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>索引</th></tr>';
+  a.forEach(x=>{
+    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
+  });
+  h+='</table>';document.getElementById('accountsBody').innerHTML=h;
+  populateSelects(a);
+}
+function populateSelects(accounts){
+  ['quotaAuthIdx','checkinAuthIdx'].forEach(id=>{
+    const sel=document.getElementById(id);sel.innerHTML='<option value="">全部账号</option>';
+    accounts.forEach(a=>{
+      const label=(a.uid_tail||'?')+' ('+a.nickname+')';
+      sel.innerHTML+='<option value="'+esc(a.auth_index)+'">'+label+'</option>';
+    });
+  });
+}
+
+async function refreshQuota(){
+  const idx=document.getElementById('quotaAuthIdx').value;
+  if(!idx){toast('请选择账号','err');return}
+  toast('正在查询配额...','info');
+  const d=await api('/quota',{auth_index:idx});if(!d)return;
+  if(d.error){document.getElementById('quotaBody').innerHTML='<div class="status status-error">查询失败: '+esc(d.error)+'</div>';return}
+  let h='<table><tr><th>指标</th><th>值</th></tr>';
+  h+='<tr><td>剩余额度</td><td><strong>'+d.remain.toLocaleString()+'</strong> 积分</td></tr>';
+  h+='<tr><td>已用额度</td><td>'+d.used.toLocaleString()+' 积分</td></tr>';
+  h+='<tr><td>总量</td><td>'+d.size.toLocaleString()+' 积分</td></tr>';
+  h+='<tr><td>套餐数</td><td>'+d.packages+'</td></tr>';
+  if(d.size>0){const pct=(d.remain/d.size*100).toFixed(1);
+    h+='<tr><td>剩余额度比例</td><td><div style="background:#e8eaed;border-radius:4px;height:8px;width:200px;display:inline-block;vertical-align:middle;margin-right:8px"><div style="background:'+(pct>30?'#34a853':'#ea4335')+';height:8px;border-radius:4px;width:'+Math.min(pct,100)+'%"></div></div> '+pct+'%</td></tr>';}
+  h+='</table>';document.getElementById('quotaBody').innerHTML=h;
+}
+
+async function doCheckin(){
+  const idx=document.getElementById('checkinAuthIdx').value;
+  toast('正在签到...','info');
+  const body=idx?{auth_index:idx}:{};
+  const d=await api('/checkin',body);if(!d)return;
+  const results=d.results||[];
+  if(!results.length){document.getElementById('checkinBody').innerHTML='<div class="empty">无账号可签到</div>';return}
+  let h='<table><tr><th>UID</th><th>状态</th><th>信息</th><th>余额</th></tr>';
+  results.forEach(r=>{
+    const cls=r.status==='OK'||r.status==='ALREADY'?'status-ok':r.status==='AUTH_INVALID'?'status-auth':'status-error';
+    h+='<tr><td>'+esc(r.uid||'-')+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td><td>'+esc(r.message)+'</td><td>'+(r.remain!=null?r.remain.toLocaleString()+' 积分':'-')+'</td></tr>';
+  });
+  h+='</table>';document.getElementById('checkinBody').innerHTML=h;
+}
+
+// 初始加载账号
+if(savedKey)loadAccounts();
+</script>
+</body>
+</html>

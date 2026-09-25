@@ -124,12 +124,8 @@ func TestHandleMethodReconfigureReturnsRegistration(t *testing.T) {
 }
 
 func TestHandleMethodNotImplementedReturnsCorrectEnvelope(t *testing.T) {
-	// Given: methods that should return not_implemented（quota/usage/lifecycle 未实现；model/executor 已在 P2/P3 实现）。
+	// Given: methods that should return not_implemented（usage/lifecycle 未实现；quota 已在 P4 实现；model/executor 已在 P2/P3 实现）。
 	notImplMethods := []string{
-		pluginabi.MethodQuotaIdentifier,
-		pluginabi.MethodQuotaDescribe,
-		pluginabi.MethodQuotaFetch,
-		pluginabi.MethodQuotaReset,
 		pluginabi.MethodUsageHandle,
 		pluginabi.MethodRequestComplete,
 		pluginabi.MethodPluginQuiesce,
