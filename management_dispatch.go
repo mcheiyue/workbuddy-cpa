@@ -70,10 +70,10 @@ func managementHandle(raw []byte) ([]byte, error) {
 		}
 		return managementResponseEnvelope(resp)
 	case path == "/index.html" || strings.HasSuffix(path, "/workbuddy/index.html"):
-		return okEnvelope(map[string]any{
-			"status_code": 200,
-			"headers":     map[string]string{"Content-Type": "text/html; charset=utf-8"},
-			"body":        string(workbuddyWebUI),
+		return okEnvelope(pluginapi.ManagementResponse{
+			StatusCode: http.StatusOK,
+			Headers:    http.Header{"Content-Type": {"text/html; charset=utf-8"}},
+			Body:       workbuddyWebUI,
 		})
 	default:
 		return errorEnvelopeStatus("not_found", "management route not found: "+path, 404), nil
@@ -81,16 +81,14 @@ func managementHandle(raw []byte) ([]byte, error) {
 }
 
 // managementResponseEnvelope 将 ManagementResponse 包装为 RPC Envelope。
+// 必须直接序列化结构体本身：Body 是 []byte，宿主 rpc_client.callPlugin 用
+// json.Unmarshal 解回 ManagementResponse 时对 []byte 按 base64 解码；
+// 手工 "body": string(...) 传明文会触发 illegal base64 → 宿主 502。
 func managementResponseEnvelope(resp pluginapi.ManagementResponse) ([]byte, error) {
-	statusCode := resp.StatusCode
-	if statusCode == 0 {
-		statusCode = http.StatusOK
+	if resp.StatusCode == 0 {
+		resp.StatusCode = http.StatusOK
 	}
-	return okEnvelope(map[string]any{
-		"status_code": statusCode,
-		"headers":     resp.Headers,
-		"body":        string(resp.Body),
-	})
+	return okEnvelope(resp)
 }
 
 // managementPath 归一化管理请求路径，去除 CPA 前缀。
