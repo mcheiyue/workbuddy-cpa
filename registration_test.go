@@ -48,8 +48,8 @@ func TestRegistrationSchema6WorkBuddyCapabilities(t *testing.T) {
 	if reg.Metadata.Name != "workbuddy" {
 		t.Fatalf("Name=%q, want %q", reg.Metadata.Name, "workbuddy")
 	}
-	if reg.Metadata.Version != "0.1.5" {
-		t.Fatalf("Version=%q, want %q", reg.Metadata.Version, "0.1.5")
+	if reg.Metadata.Version != "0.1.6" {
+		t.Fatalf("Version=%q, want %q", reg.Metadata.Version, "0.1.6")
 	}
 	if reg.Metadata.Author != "mcheiyue" {
 		t.Fatalf("Author=%q, want %q", reg.Metadata.Author, "mcheiyue")
