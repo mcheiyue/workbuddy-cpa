@@ -5,33 +5,36 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WorkBuddy 管理面板</title>
 <style>
+:root{color-scheme:light dark;--bg:#f5f7fa;--panel:#fff;--ink:#182230;--muted:#667085;--line:#d9dee8;--accent:#1a73e8;--ok:#137333;--ok-bg:#e6f4ea;--err:#c5221f;--err-bg:#fce8e6;--warn:#b06000;--warn-bg:#fef7e0;--shadow:rgba(0,0,0,.12)}
+@media(prefers-color-scheme:dark){:root{--bg:#101318;--panel:#191e27;--ink:#f2f4f7;--muted:#98a2b3;--line:#303846;--ok:#4caf50;--ok-bg:#1b3a24;--err:#f44336;--err-bg:#3d1b1b;--warn:#ffb74d;--warn-bg:#3d2e0a;--shadow:rgba(0,0,0,.35)}}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f7fa;color:#333;min-height:100vh}
-.header{background:#1a73e8;color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+.header{background:var(--accent);color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
 .header h1{font-size:18px;font-weight:600}
 .container{max-width:960px;margin:0 auto;padding:16px}
-.card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.12);padding:16px;margin-bottom:16px}
-.card h2{font-size:15px;font-weight:600;margin-bottom:12px;border-bottom:1px solid #e8eaed;padding-bottom:8px}
+.card{background:var(--panel);border-radius:8px;box-shadow:0 1px 3px var(--shadow);padding:16px;margin-bottom:16px}
+.card h2{font-size:15px;font-weight:600;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
 .auth-bar{display:flex;gap:8px;align-items:center;margin-bottom:16px}
-.auth-bar input{flex:1;padding:8px 12px;border:1px solid #dadce0;border-radius:6px;font-size:13px}
-.auth-bar button,.btn{padding:8px 16px;border:none;border-radius:6px;background:#1a73e8;color:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
-.auth-bar button:hover,.btn:hover{background:#1557b0}
-.btn:disabled{background:#94b8e8;cursor:not-allowed}
-.btn-secondary{background:#5f6368}.btn-secondary:hover{background:#3c4043}
-.btn-success{background:#34a853}.btn-success:hover{background:#2d8f47}
-.btn-danger{background:#ea4335}.btn-danger:hover{background:#c5221f}
+.auth-bar input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)}
+.auth-bar button,.btn{padding:8px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.auth-bar button:hover,.btn:hover{opacity:.88}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-secondary{background:var(--muted)}.btn-secondary:hover{opacity:.88}
+.btn-success{background:var(--ok);color:#fff}.btn-success:hover{opacity:.88}
+.btn-danger{background:var(--err);color:#fff}.btn-danger:hover{opacity:.88}
 .status{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500}
-.status-ok{background:#e6f4ea;color:#137333}
-.status-error{background:#fce8e6;color:#c5221f}
-.status-pending{background:#fef7e0;color:#b06000}
-.status-auth{background:#fce8e6;color:#c5221f}
+.status-ok{background:var(--ok-bg);color:var(--ok)}
+.status-error{background:var(--err-bg);color:var(--err)}
+.status-pending{background:var(--warn-bg);color:var(--warn)}
+.status-auth{background:var(--err-bg);color:var(--err)}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #e8eaed}
-th{font-weight:600;background:#f8f9fa}
-.empty{text-align:center;padding:24px;color:#5f6368}
-.toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;z-index:999;display:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.toast-ok{background:#34a853}.toast-err{background:#ea4335}.toast-info{background:#1a73e8}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-weight:600;background:var(--bg)}
+.empty{text-align:center;padding:24px;color:var(--muted)}
+.toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;z-index:999;display:none;box-shadow:0 2px 8px var(--shadow)}
+.toast-ok{background:var(--ok)}.toast-err{background:var(--err)}.toast-info{background:var(--accent)}
 .flex-between{display:flex;justify-content:space-between;align-items:center}
+@media(max-width:600px){.header{padding:12px 16px}.container{padding:12px}.card{padding:12px}}
 </style>
 </head>
 <body>
@@ -40,19 +43,19 @@ th{font-weight:600;background:#f8f9fa}
 <div class="auth-bar">
   <input id="key" type="password" placeholder="输入管理密钥" autocomplete="off">
   <button onclick="saveKey()">保存密钥</button>
-  <span id="keyStatus" style="font-size:12px;color:#5f6368"></span>
+  <span id="keyStatus" style="font-size:12px;color:var(--muted)"></span>
 </div>
 
 <!-- 统计概览 -->
 <div class="card">
   <div class="flex-between"><h2>统计概览</h2><button class="btn" onclick="loadStats()">刷新</button></div>
   <div id="statsBody"><div class="empty">点击"刷新"加载统计</div></div>
-  <div style="font-size:11px;color:#5f6368;margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
 </div>
 
 <!-- 账号列表 -->
 <div class="card">
-  <div class="flex-between"><h2>账号列表</h2><button class="btn" onclick="loadAccounts()">刷新</button></div>
+  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
 </div>
 
@@ -60,28 +63,28 @@ th{font-weight:600;background:#f8f9fa}
 <div class="card">
   <div class="flex-between"><h2>模型目录</h2><button class="btn" onclick="loadModels()">刷新</button></div>
   <div id="modelsBody"><div class="empty">点击"刷新"加载模型</div></div>
-  <div style="font-size:11px;color:#5f6368;margin-top:8px">来自上游目录，已按调用 ID 去重</div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">来自上游目录，已按调用 ID 去重</div>
 </div>
 
 <!-- 本地签到记录 -->
 <div class="card">
   <div class="flex-between"><h2>本地签到记录</h2><button class="btn" onclick="loadLastCheckin()">刷新</button></div>
   <div id="checkinRecordBody"><div class="empty">点击"刷新"加载签到记录</div></div>
-  <div style="font-size:11px;color:#5f6368;margin-top:8px">本地观测，非上游权威</div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
 </div>
 
 <!-- Credits 流水 -->
 <div class="card">
   <div class="flex-between"><h2>Credits 流水</h2><button class="btn" onclick="loadCreditsLedger()">刷新</button></div>
   <div id="creditsLedgerBody"><div class="empty">点击"刷新"加载流水</div></div>
-  <div style="font-size:11px;color:#5f6368;margin-top:8px">本地观测，非上游权威</div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
 </div>
 
 <!-- 配额刷新 -->
 <div class="card">
   <div class="flex-between"><h2>配额信息</h2>
     <div>
-      <select id="quotaAuthIdx" style="padding:6px 8px;border:1px solid #dadce0;border-radius:6px;font-size:13px;margin-right:8px">
+      <select id="quotaAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
         <option value="">全部账号</option>
       </select>
       <button class="btn" onclick="refreshQuota()">刷新配额</button>
@@ -94,7 +97,7 @@ th{font-weight:600;background:#f8f9fa}
 <div class="card">
   <div class="flex-between"><h2>手动签到</h2>
     <div>
-      <select id="checkinAuthIdx" style="padding:6px 8px;border:1px solid #dadce0;border-radius:6px;font-size:13px;margin-right:8px">
+      <select id="checkinAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
         <option value="">全部账号</option>
       </select>
       <button class="btn btn-success" onclick="doCheckin()">签到</button>
@@ -106,7 +109,9 @@ th{font-weight:600;background:#f8f9fa}
 <div id="toast" class="toast"></div>
 <script>
 const API='/v0/management/plugins/workbuddy';
+const AUTH_BASE='/v0/management';
 let savedKey=localStorage.getItem('wb_mgmt_key')||'';
+let pollTimer=null;
 if(savedKey)document.getElementById('key').value=savedKey;
 function getKey(){return savedKey}
 function saveKey(){savedKey=document.getElementById('key').value.trim();localStorage.setItem('wb_mgmt_key',savedKey);toast(savedKey?'密钥已保存':'密钥已清除','info')}
@@ -119,6 +124,15 @@ async function api(path,body){
     if(!r.ok){toast('请求失败: '+r.status,'err');return null}
     return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
 }
+async function authApi(path,body){
+  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
+  const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
+  const opt=body?{method:'POST',headers:h,body:JSON.stringify(body)}:{headers:h};
+  try{const r=await fetch(AUTH_BASE+path,opt);const t=await r.text();
+    if(r.status===401){toast('管理密钥无效，请检查','err');return null}
+    if(!r.ok){toast('请求失败: '+r.status,'err');return null}
+    return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
+}
 function toast(msg,type){
   const t=document.getElementById('toast');t.textContent=msg;
   t.className='toast toast-'+(type||'info');t.style.display='block';
@@ -126,10 +140,40 @@ function toast(msg,type){
 }
 function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'):''}
 
+// --- 登录/添加账号流程 ---
+async function startLogin(){
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null}
+  const btn=document.getElementById('loginBtn');btn.disabled=true;
+  try{
+    const body=await authApi('/workbuddy-auth-url');
+    if(!body||!body.url){toast(body&&body.error?'启动登录失败: '+body.error:'无法获取授权链接','err');return}
+    window.open(body.url,'_blank','noopener');
+    toast('等待 WorkBuddy 授权…','info');
+    const state=body.state;
+    pollTimer=setInterval(async()=>{
+      try{
+        const res=await authApi('/get-auth-status?state='+encodeURIComponent(state));
+        if(res&&res.status==='ok'){
+          clearInterval(pollTimer);pollTimer=null;
+          toast('登录成功','ok');loadAccounts();btn.disabled=false;
+        }else if(res&&res.status==='error'){
+          clearInterval(pollTimer);pollTimer=null;
+          toast('登录失败: '+(res.error||'未知错误'),'err');btn.disabled=false;
+        }
+      }catch(e){
+        clearInterval(pollTimer);pollTimer=null;
+        toast('轮询出错: '+e.message,'err');btn.disabled=false;
+      }
+    },2500);
+  }catch(e){
+    toast('登录请求失败: '+e.message,'err');btn.disabled=false;
+  }
+}
+
 async function loadAccounts(){
   const d=await api('/accounts');if(!d)return;
   const a=d.accounts||[];
-  if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号</div>';return}
+  if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号，点击「登录/添加账号」开始</div>';return}
   let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th></tr>';
   a.forEach(x=>{
     h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.last_checkin||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
@@ -191,7 +235,7 @@ async function refreshQuota(){
   h+='<tr><td>总量</td><td>'+d.size.toLocaleString()+' 积分</td></tr>';
   h+='<tr><td>套餐数</td><td>'+d.packages+'</td></tr>';
   if(d.size>0){const pct=(d.remain/d.size*100).toFixed(1);
-    h+='<tr><td>剩余额度比例</td><td><div style="background:#e8eaed;border-radius:4px;height:8px;width:200px;display:inline-block;vertical-align:middle;margin-right:8px"><div style="background:'+(pct>30?'#34a853':'#ea4335')+';height:8px;border-radius:4px;width:'+Math.min(pct,100)+'%"></div></div> '+pct+'%</td></tr>';}
+    h+='<tr><td>剩余额度比例</td><td><div style="background:var(--line);border-radius:4px;height:8px;width:200px;display:inline-block;vertical-align:middle;margin-right:8px"><div style="background:'+(pct>30?'var(--ok)':'var(--err)')+';height:8px;border-radius:4px;width:'+Math.min(pct,100)+'%"></div></div> '+pct+'%</td></tr>';}
   h+='</table>';document.getElementById('quotaBody').innerHTML=h;
 }
 
