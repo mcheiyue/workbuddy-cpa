@@ -119,6 +119,8 @@ func handleAuthLoginPoll(ctx context.Context, raw []byte) (pluginapi.AuthLoginPo
 			Message: "waiting for login",
 		}, nil
 	}
+	// Start ops ticker now that an account exists.
+	EnsureOpsStarted()
 	return pluginapi.AuthLoginPollResponse{
 		Status: pluginapi.AuthLoginStatusSuccess,
 		Auth:   poll.Credential.AuthData(""),
@@ -142,6 +144,8 @@ func handleAuthRefresh(ctx context.Context, raw []byte) (pluginapi.AuthRefreshRe
 	if err != nil {
 		return pluginapi.AuthRefreshResponse{}, err
 	}
+	// Start ops ticker now that an account exists (refresh confirms validity).
+	EnsureOpsStarted()
 	return pluginapi.AuthRefreshResponse{
 		Auth:             refreshed.Credential.AuthData(""),
 		NextRefreshAfter: refreshed.NextRefreshAfter,

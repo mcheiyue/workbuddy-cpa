@@ -16,6 +16,8 @@ func managementRegister() map[string]any {
 			{"method": http.MethodGet, "path": "/workbuddy/models"},
 			{"method": http.MethodPost, "path": "/workbuddy/quota"},
 			{"method": http.MethodPost, "path": "/workbuddy/checkin"},
+			{"method": http.MethodGet, "path": "/workbuddy/last-checkin"},
+			{"method": http.MethodGet, "path": "/workbuddy/credits-ledger"},
 		},
 		"resources": []map[string]string{
 			{"path": "/index.html", "menu": "WorkBuddy", "description": "WorkBuddy 管理面板"},
@@ -51,6 +53,18 @@ func managementHandle(raw []byte) ([]byte, error) {
 		return managementResponseEnvelope(resp)
 	case path == "/workbuddy/checkin" && request.Method == http.MethodPost:
 		resp, err := defaultManagementService.checkinHandler(request.Body)
+		if err != nil {
+			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
+		}
+		return managementResponseEnvelope(resp)
+	case path == "/workbuddy/last-checkin" && request.Method == http.MethodGet:
+		resp, err := defaultOpsManagementService.lastCheckinHandler()
+		if err != nil {
+			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
+		}
+		return managementResponseEnvelope(resp)
+	case path == "/workbuddy/credits-ledger" && request.Method == http.MethodGet:
+		resp, err := defaultOpsManagementService.creditsLedgerHandler()
 		if err != nil {
 			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
 		}

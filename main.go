@@ -17,7 +17,8 @@ func handleMethod(method string, raw []byte) ([]byte, error) {
 	case pluginabi.MethodPluginRegister, pluginabi.MethodPluginReconfigure:
 		return okEnvelope(registration())
 	case pluginabi.MethodPluginQuiesce, pluginabi.MethodPluginShutdown:
-		return notImplemented(method)
+		StopOpsTicker()
+		return okEnvelope(nil)
 
 	// Management API
 	case pluginabi.MethodManagementRegister:

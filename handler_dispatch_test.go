@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
 )
@@ -124,12 +125,10 @@ func TestHandleMethodReconfigureReturnsRegistration(t *testing.T) {
 }
 
 func TestHandleMethodNotImplementedReturnsCorrectEnvelope(t *testing.T) {
-	// Given: methods that should return not_implemented（usage/lifecycle 未实现；quota 已在 P4 实现；model/executor 已在 P2/P3 实现）。
+	// Given: methods that should return not_implemented（usage/lifecycle 未实现；quota 已在 P4 实现；model/executor 已在 P2/P3 实现；quiesce/shutdown 已实现停 ticker）。
 	notImplMethods := []string{
 		pluginabi.MethodUsageHandle,
 		pluginabi.MethodRequestComplete,
-		pluginabi.MethodPluginQuiesce,
-		pluginabi.MethodPluginShutdown,
 	}
 
 	for _, method := range notImplMethods {
@@ -162,5 +161,34 @@ func TestHandleMethodNotImplementedReturnsCorrectEnvelope(t *testing.T) {
 		if !strings.Contains(env.Error.Message, method) {
 			t.Fatalf("method %q: message=%q should contain method name", method, env.Error.Message)
 		}
+	}
+}
+
+// quiesce/shutdown 已实现：返回 ok 信封并停止 ops ticker（幂等）。
+func TestHandleMethodQuiesceShutdownStopsOpsTicker(t *testing.T) {
+	savedOps := ops
+	defer func() { ops = savedOps }()
+	ops = &opsTicker{
+		now:     time.Now,
+		started: true,
+		stopCh:  make(chan struct{}),
+	}
+	for _, method := range []string{pluginabi.MethodPluginQuiesce, pluginabi.MethodPluginShutdown} {
+		raw, err := handleMethod(method, nil)
+		if err != nil {
+			t.Fatalf("handleMethod(%q): %v", method, err)
+		}
+		var env struct {
+			OK bool `json:"ok"`
+		}
+		if err := json.Unmarshal(raw, &env); err != nil {
+			t.Fatalf("method %q: %v", method, err)
+		}
+		if !env.OK {
+			t.Fatalf("method %q: expected ok=true", method)
+		}
+	}
+	if ops.started {
+		t.Fatal("expected ops ticker stopped after quiesce/shutdown")
 	}
 }

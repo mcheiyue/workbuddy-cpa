@@ -59,6 +59,7 @@ func (s *managementService) accountsHandler() (pluginapi.ManagementResponse, err
 					}
 				}
 			}
+			acct.LastCheckin = lastLedgerTs(file.AuthIndex)
 		}
 		accounts = append(accounts, acct)
 	}
@@ -167,6 +168,7 @@ func (s *managementService) quotaRefreshHandler(body []byte) (pluginapi.Manageme
 		resp.Error = quotaErrorMask(fetchErr)
 	} else {
 		resp.Remain, resp.Used, resp.Size, resp.Packages = remain, used, size, packs
+		RecordManualLedger(request.AuthIndex, remain)
 	}
 	return jsonManagementResponse(http.StatusOK, resp)
 }
@@ -231,6 +233,7 @@ func (s *managementService) checkinHandler(body []byte) (pluginapi.ManagementRes
 		if checkErr == nil || isAlreadyCheckin(checkErr) {
 			if remain, _, _, _, qerr := resourceSummary(client, realm, cred.AccessToken); qerr == nil {
 				resp.Remain = &remain
+				RecordManualLedger(file.AuthIndex, remain)
 			}
 		}
 		results = append(results, resp)

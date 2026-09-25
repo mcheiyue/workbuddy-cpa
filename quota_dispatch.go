@@ -75,6 +75,7 @@ func handleQuotaFetch(raw []byte) ([]byte, error) {
 	// Scheduler hook: store per-AuthID credits snapshot for weighted selection.
 	if aid := strings.TrimSpace(req.AuthID); aid != "" {
 		globalSchedulerState.setCredits(aid, float64(remain))
+		RecordManualLedger(aid, remain)
 	}
 	return okEnvelope(pluginapi.QuotaFetchResponse{
 		Summary: []pluginapi.QuotaMetric{

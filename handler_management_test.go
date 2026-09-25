@@ -32,9 +32,9 @@ func TestManagementRegisterReturnsRoutesAndResources(t *testing.T) {
 	if err := json.Unmarshal(envelope.Result, &result); err != nil {
 		t.Fatal(err)
 	}
-	// 验证路由表：4 条 API 路由 + 1 条资源路由
-	if len(result.Routes) != 4 {
-		t.Fatalf("routes count=%d, want 4", len(result.Routes))
+	// 验证路由表：6 条 API 路由 + 1 条资源路由
+	if len(result.Routes) != 6 {
+		t.Fatalf("routes count=%d, want 6", len(result.Routes))
 	}
 	for _, route := range result.Routes {
 		if route.Method != http.MethodGet && route.Method != http.MethodPost {

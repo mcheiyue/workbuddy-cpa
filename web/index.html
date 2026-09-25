@@ -49,6 +49,20 @@ th{font-weight:600;background:#f8f9fa}
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
 </div>
 
+<!-- 本地签到记录 -->
+<div class="card">
+  <div class="flex-between"><h2>本地签到记录</h2><button class="btn" onclick="loadLastCheckin()">刷新</button></div>
+  <div id="checkinRecordBody"><div class="empty">点击"刷新"加载签到记录</div></div>
+  <div style="font-size:11px;color:#5f6368;margin-top:8px">本地观测，非上游权威</div>
+</div>
+
+<!-- Credits 流水 -->
+<div class="card">
+  <div class="flex-between"><h2>Credits 流水</h2><button class="btn" onclick="loadCreditsLedger()">刷新</button></div>
+  <div id="creditsLedgerBody"><div class="empty">点击"刷新"加载流水</div></div>
+  <div style="font-size:11px;color:#5f6368;margin-top:8px">本地观测，非上游权威</div>
+</div>
+
 <!-- 配额刷新 -->
 <div class="card">
   <div class="flex-between"><h2>配额信息</h2>
@@ -102,9 +116,9 @@ async function loadAccounts(){
   const d=await api('/accounts');if(!d)return;
   const a=d.accounts||[];
   if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>索引</th></tr>';
+  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th></tr>';
   a.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
+    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.last_checkin||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
   });
   h+='</table>';document.getElementById('accountsBody').innerHTML=h;
   populateSelects(a);
@@ -148,6 +162,29 @@ async function doCheckin(){
     h+='<tr><td>'+esc(r.uid||'-')+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td><td>'+esc(r.message)+'</td><td>'+(r.remain!=null?r.remain.toLocaleString()+' 积分':'-')+'</td></tr>';
   });
   h+='</table>';document.getElementById('checkinBody').innerHTML=h;
+}
+
+async function loadLastCheckin(){
+  const d=await api('/last-checkin');if(!d)return;
+  const records=d.last_checkins||[];
+  if(!records.length){document.getElementById('checkinRecordBody').innerHTML='<div class="empty">暂无签到记录</div>';return}
+  let h='<table><tr><th>账号</th><th>时间</th><th>来源</th><th>状态</th></tr>';
+  records.forEach(r=>{
+    const cls=r.status==='OK'||r.status==='TICKER'?'status-ok':'status-pending';
+    h+='<tr><td>'+esc(r.auth_id)+'</td><td>'+esc(r.ts)+'</td><td>'+esc(r.source)+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td></tr>';
+  });
+  h+='</table>';document.getElementById('checkinRecordBody').innerHTML=h;
+}
+
+async function loadCreditsLedger(){
+  const d=await api('/credits-ledger');if(!d)return;
+  const entries=d.entries||[];
+  if(!entries.length){document.getElementById('creditsLedgerBody').innerHTML='<div class="empty">暂无流水记录</div>';return}
+  let h='<table><tr><th>时间</th><th>账号</th><th>余额</th><th>来源</th></tr>';
+  entries.forEach(e=>{
+    h+='<tr><td>'+esc(e.ts)+'</td><td>'+esc(e.auth_id)+'</td><td>'+e.balance.toLocaleString()+'</td><td>'+esc(e.source)+'</td></tr>';
+  });
+  h+='</table>';document.getElementById('creditsLedgerBody').innerHTML=h;
 }
 
 // 初始加载账号

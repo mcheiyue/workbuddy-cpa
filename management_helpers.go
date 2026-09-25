@@ -10,12 +10,13 @@ import (
 
 // managementAccount 管理面板账号条目（脱敏：无 token/device_token）。
 type managementAccount struct {
-	AuthIndex  string `json:"auth_index"`
-	UIDTail    string `json:"uid_tail"`
-	Nickname   string `json:"nickname"`
-	Realm      string `json:"realm"`
-	ExpiresAt  string `json:"expires_at,omitempty"`
-	QuotaError string `json:"quota_error,omitempty"`
+	AuthIndex   string `json:"auth_index"`
+	UIDTail     string `json:"uid_tail"`
+	Nickname    string `json:"nickname"`
+	Realm       string `json:"realm"`
+	ExpiresAt   string `json:"expires_at,omitempty"`
+	LastCheckin string `json:"last_checkin,omitempty"`
+	QuotaError  string `json:"quota_error,omitempty"`
 }
 
 // managementQuotaResp 配额刷新响应。
@@ -30,10 +31,10 @@ type managementQuotaResp struct {
 
 // managementCheckinResp 签到响应。
 type managementCheckinResp struct {
-	UID    string `json:"uid,omitempty"`
-	Status string `json:"status"`
+	UID     string `json:"uid,omitempty"`
+	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
-	Remain *int64 `json:"remain,omitempty"`
+	Remain  *int64 `json:"remain,omitempty"`
 }
 
 // uidTail 返回 UID 尾号（最后 4 位），用于脱敏展示。
