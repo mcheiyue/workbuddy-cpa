@@ -1,0 +1,7 @@
+*.exe
+*.so
+*.dylib
+*.test
+/qoder.so
+/dist/
+/tmp/
