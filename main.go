@@ -15,6 +15,8 @@ func handleMethod(method string, raw []byte) ([]byte, error) {
 	switch method {
 	// 插件生命周期
 	case pluginabi.MethodPluginRegister, pluginabi.MethodPluginReconfigure:
+		// 注册即启动 ops，保证容器重启后后台槽位仍跑（幂等；goroutine 自延迟 2s）
+		EnsureOpsStarted()
 		return okEnvelope(registration())
 	case pluginabi.MethodPluginQuiesce, pluginabi.MethodPluginShutdown:
 		StopOpsTicker()

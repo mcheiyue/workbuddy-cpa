@@ -70,11 +70,27 @@ func TestHandleMethodEmptyMethod(t *testing.T) {
 }
 
 func TestHandleMethodRegisterReturnsSchema6(t *testing.T) {
-	// Given: the plugin.register method.
+	// Given: the plugin.register method (lifecycle starts the ops ticker).
+	orig := ops
+	ops = &opsTicker{now: time.Now}
+	defer func() {
+		StopOpsTicker()
+		ops = orig
+	}()
+
 	// When: handleMethod processes it.
 	raw, err := handleMethod("plugin.register", nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Then: register lifecycle must start the ops ticker (container restart
+	// has no login/refresh event, so the ticker would otherwise never run).
+	ops.mu.Lock()
+	started := ops.started
+	ops.mu.Unlock()
+	if !started {
+		t.Fatal("expected ops ticker started after plugin.register")
 	}
 
 	// Then: result must contain schema_version 6 and plugin name.
@@ -106,7 +122,14 @@ func TestHandleMethodRegisterReturnsSchema6(t *testing.T) {
 }
 
 func TestHandleMethodReconfigureReturnsRegistration(t *testing.T) {
-	// Given: plugin.reconfigure method.
+	// Given: plugin.reconfigure method (lifecycle starts the ops ticker).
+	orig := ops
+	ops = &opsTicker{now: time.Now}
+	defer func() {
+		StopOpsTicker()
+		ops = orig
+	}()
+
 	// When: handleMethod processes it.
 	raw, err := handleMethod(pluginabi.MethodPluginReconfigure, nil)
 	if err != nil {
