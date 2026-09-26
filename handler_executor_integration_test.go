@@ -51,13 +51,11 @@ func TestExecutorExecuteRPCTrack(t *testing.T) {
 		fmt.Fprint(w, "data: [DONE]\n\n")
 	}))
 	defer upstream.Close()
-
 	orig := hostJSONCall
 	defer func() { hostJSONCall = orig }()
 	hostJSONCall = func(method string, payload any) (json.RawMessage, error) {
 		return mockHostHTTPDo(method, payload, upstream)
 	}
-
 	storageJSON := []byte(`{"auth":{"accessToken":"test-token","refreshToken":"rt","expiresAt":9999999999,"domain":"www.codebuddy.cn","realm":"cn"},"account":{"uid":"u-test","nickname":"tester"}}`)
 	payload := []byte(`{"model":"workbuddy/test-model","messages":[{"role":"user","content":"hi"}],"stream":false}`)
 	rawReq, _ := json.Marshal(executorRequestHelper("workbuddy", "auth-u-test", "workbuddy/test-model", storageJSON, payload, ""))
@@ -162,7 +160,9 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 		case pluginabi.MethodHostHTTPDo:
 			return mockHostHTTPDoRaw(method, payload, upstream)
 		case pluginabi.MethodHostHTTPDoStream:
-			// 复用 do 的上游打点，转成流式 wire（status_code/stream_id）。
+			if err := assertStreamWireProfile(payload); err != nil {
+				return nil, err
+			}
 			raw, err := mockHostHTTPDoRaw(pluginabi.MethodHostHTTPDo, payload, upstream)
 			if err != nil {
 				return nil, err
@@ -192,7 +192,6 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	storageJSON := []byte(`{"auth":{"accessToken":"test-token","refreshToken":"rt","expiresAt":9999999999,"domain":"www.codebuddy.cn","realm":"cn"},"account":{"uid":"u-test","nickname":"tester"}}`)
 	payload := []byte(`{"model":"workbuddy/stream-model","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	rawReq, _ := json.Marshal(executorStreamRequestHelper("workbuddy", "auth-u-test", "workbuddy/stream-model", storageJSON, payload, "stream-001"))
-
 	raw, err := handleMethod(pluginabi.MethodExecutorExecuteStream, rawReq)
 	if err != nil {
 		t.Fatal(err)
