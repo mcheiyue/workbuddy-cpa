@@ -28,17 +28,25 @@ func lockAuthRefresh(authID string) func() {
 }
 
 // opsDailyTask 每日运营任务槽（本地时间小时锚 + 0-30min 抖动，每个任务每天一次）。
+// scope 为 realm 分表："" = 两 realm 都跑；wbauth.RealmCN / RealmGlobal = 仅该 realm。
 type opsDailyTask struct {
-	name string
-	hour int
-	run  func(*opsTicker, accountInfo)
+	name  string
+	hour  int
+	scope string
+	run   func(*opsTicker, accountInfo)
 }
 
 var opsDailyTasks = []opsDailyTask{
-	{name: "checkin", hour: 9, run: (*opsTicker).runCheckin},
-	{name: "activity", hour: 10, run: (*opsTicker).runActivity},
-	{name: "claim", hour: 11, run: (*opsTicker).runClaimCredits},
-	{name: "keepalive", hour: 22, run: (*opsTicker).runKeepalive},
+	{name: "checkin", hour: 9, scope: wbauth.RealmCN, run: (*opsTicker).runCheckin},     // ref D4：global 无签到体系，自动跳过防风控
+	{name: "activity", hour: 10, run: (*opsTicker).runActivity},                         // ref PR #45：CN 与 global 都上报
+	{name: "claim", hour: 11, scope: wbauth.RealmCN, run: (*opsTicker).runClaimCredits}, // ref：global growth 500，CN-only
+	{name: "trial", hour: 12, scope: wbauth.RealmGlobal, run: (*opsTicker).runTrial},    // ref trial.go：global 专属一次性加油包
+	{name: "keepalive", hour: 22, run: (*opsTicker).runKeepalive},                       // token 保活 realm 无关
+}
+
+// appliesTo 判断任务是否作用于该 realm 账号。
+func (t opsDailyTask) appliesTo(realm string) bool {
+	return t.scope == "" || t.scope == realm
 }
 
 // opsWake 任务未来触发时刻。
@@ -47,11 +55,15 @@ type opsWake struct {
 	at   time.Time
 }
 
-// buildWakes 为每个任务生成最近一次未来触发时刻；今天已过点则滚到明日。
+// buildWakes 为该 realm 账号生成最近一次未来触发时刻；今天已过点则滚到明日。
+// scope 过滤在构造时执行：被排除的任务零唤醒、零上游调用（结构性门控）。
 // 每任务一次抖动抽签（0-30min），槽位间互不挤占。
-func buildWakes(now time.Time) []opsWake {
+func buildWakes(now time.Time, realm string) []opsWake {
 	out := make([]opsWake, 0, len(opsDailyTasks))
 	for _, task := range opsDailyTasks {
+		if !task.appliesTo(realm) {
+			continue
+		}
 		at := time.Date(now.Year(), now.Month(), now.Day(), task.hour, rand.Intn(30), 0, 0, now.Location())
 		if !at.After(now) {
 			at = at.Add(24 * time.Hour)
@@ -73,11 +85,18 @@ func (t *opsTicker) accountLoop(acct accountInfo) {
 		return
 	case <-timer.C:
 	}
-	t.runCheckin(acct) // 立即首轮（10001 幂等兜底）
-	pending := buildWakes(t.now())
+	// 首轮立即签到仅对 checkin 任务适用的 realm（global 跳过防风控，ref D4；
+	// 按名查表而非硬编码下标，任务顺序变更不破坏门控）。
+	for _, task := range opsDailyTasks {
+		if task.name == "checkin" && task.appliesTo(acct.realm) {
+			t.runCheckin(acct) // 立即首轮（10001 幂等兜底）
+			break
+		}
+	}
+	pending := buildWakes(t.now(), acct.realm)
 	for {
 		if len(pending) == 0 {
-			pending = buildWakes(t.now())
+			pending = buildWakes(t.now(), acct.realm)
 		}
 		idx := 0
 		for i, w := range pending {
@@ -136,7 +155,7 @@ func (t *opsTicker) freshCred(acct accountInfo) (wbauth.Credential, error) {
 	return wbauth.Parse(got.JSON)
 }
 
-// runActivity 每日对话活跃上报（CN；Global 由 discover 排除）。
+// runActivity 每日对话活跃上报（CN+Global；ref PR #45 实测国际版 /v2/report 可用）。
 func (t *opsTicker) runActivity(acct accountInfo) {
 	var actErr error
 	defer func() {

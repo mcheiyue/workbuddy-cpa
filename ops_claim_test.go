@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
 )
 
 func TestIsClaimAlreadyDone_409Duplicate(t *testing.T) {
@@ -98,8 +100,8 @@ func TestGrowthPaths(t *testing.T) {
 // --- OpsDailyTasks schedule contains claim at slot 3 ---
 
 func TestOpsDailyTasksHasClaimSlot(t *testing.T) {
-	if len(opsDailyTasks) != 4 {
-		t.Fatalf("opsDailyTasks len=%d, want 4", len(opsDailyTasks))
+	if len(opsDailyTasks) != 5 {
+		t.Fatalf("opsDailyTasks len=%d, want 5 (checkin/activity/claim/trial/keepalive)", len(opsDailyTasks))
 	}
 	found := false
 	for _, task := range opsDailyTasks {
@@ -117,7 +119,7 @@ func TestOpsDailyTasksHasClaimSlot(t *testing.T) {
 
 func TestBuildWakesReturns4Entries(t *testing.T) {
 	now := time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)
-	wakes := buildWakes(now)
+	wakes := buildWakes(now, wbauth.RealmCN)
 	if len(wakes) != 4 {
 		t.Fatalf("wakes=%d, want 4", len(wakes))
 	}

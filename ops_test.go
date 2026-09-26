@@ -107,10 +107,10 @@ func TestEnsureOpsStarted_Idempotent(t *testing.T) {
 	defer func() { ops = savedOps }()
 
 	ops = &opsTicker{
-		now:              time.Now,
-		stopCh:           make(chan struct{}),
-		started:          true,
-		listCNAccountsFn: func() []accountInfo { return nil },
+		now:            time.Now,
+		stopCh:         make(chan struct{}),
+		started:        true,
+		listAccountsFn: func() []accountInfo { return nil },
 	}
 	// Should not panic or double-start.
 	ops.start()
@@ -125,24 +125,25 @@ func TestStopOpsTicker_NeverStarted(t *testing.T) {
 	ops.stop() // must not panic
 }
 
-// --- CN-only gating ---
+// --- realm 分表：discover 收全部账号，scope 过滤在 buildWakes ---
 
-func TestDiscoverCNAccounts_GlobalExcluded(t *testing.T) {
+func TestDiscoverAccounts_IncludesBothRealms(t *testing.T) {
 	ticker := &opsTicker{
 		callHostFn: mockCallHost(t),
 	}
-	accounts := ticker.discoverCNAccounts()
+	accounts := ticker.discoverAccounts()
+	byIndex := make(map[string]string, len(accounts))
 	for _, acct := range accounts {
-		if acct.realm == wbauth.RealmGlobal {
-			t.Fatalf("global account should be excluded: %+v", acct)
-		}
+		byIndex[acct.authIndex] = acct.realm
 	}
-	// Should have exactly 1 CN account.
-	if len(accounts) != 1 {
-		t.Fatalf("accounts len=%d, want 1 (only CN)", len(accounts))
+	if len(accounts) != 2 {
+		t.Fatalf("accounts len=%d, want 2 (cn1+global1)", len(accounts))
 	}
-	if accounts[0].authIndex != "cn1" {
-		t.Fatalf("expected cn1, got %s", accounts[0].authIndex)
+	if byIndex["cn1"] != wbauth.RealmCN {
+		t.Fatalf("cn1 realm=%q, want cn", byIndex["cn1"])
+	}
+	if byIndex["global1"] != wbauth.RealmGlobal {
+		t.Fatalf("global1 realm=%q, want global", byIndex["global1"])
 	}
 }
 

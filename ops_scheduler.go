@@ -14,16 +14,16 @@ import (
 
 // opsTicker manages per-account daily check-in tickers.
 type opsTicker struct {
-	mu               sync.Mutex
-	started          bool
-	spawned          map[string]bool // authIndex → already-spawned loop
-	stopCh           chan struct{}
-	wg               sync.WaitGroup
-	now              func() time.Time
-	tickHook         func(authID string, err error)
-	hostHTTPFn       func(callbackID string) (*http.Client, error)
-	callHostFn       func(string, any) (json.RawMessage, error)
-	listCNAccountsFn func() []accountInfo
+	mu             sync.Mutex
+	started        bool
+	spawned        map[string]bool // authIndex → already-spawned loop
+	stopCh         chan struct{}
+	wg             sync.WaitGroup
+	now            func() time.Time
+	tickHook       func(authID string, err error)
+	hostHTTPFn     func(callbackID string) (*http.Client, error)
+	callHostFn     func(string, any) (json.RawMessage, error)
+	listAccountsFn func() []accountInfo
 }
 
 // EnsureOpsStarted starts per-account tickers for all known accounts.
@@ -87,7 +87,7 @@ func (t *opsTicker) run() {
 // outside the lock; spawning is deduped so the hourly re-scan only picks up
 // NEW accounts instead of stacking duplicate loops per existing account.
 func (t *opsTicker) spawnTickers() {
-	accounts := t.discoverCNAccounts()
+	accounts := t.discoverAccounts()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if !t.started || t.spawned == nil {
@@ -115,9 +115,12 @@ type accountInfo struct {
 	authID     string // 宿主 auth.ID，refresh 互斥键
 }
 
-func (t *opsTicker) discoverCNAccounts() []accountInfo {
-	if t.listCNAccountsFn != nil {
-		return t.listCNAccountsFn()
+// discoverAccounts 枚举全部 WorkBuddy 账号（CN+Global）。realm 任务分表由
+// buildWakes 的 scope 过滤决定，此处不再按 realm 排除（C1b：Global 需要
+// activity/keepalive/trial 调度；checkin/claim 由 scope 排除防风控，ref D4）。
+func (t *opsTicker) discoverAccounts() []accountInfo {
+	if t.listAccountsFn != nil {
+		return t.listAccountsFn()
 	}
 	callFn := t.callHostFn
 	if callFn == nil {
@@ -151,9 +154,6 @@ func (t *opsTicker) discoverCNAccounts() []accountInfo {
 			continue
 		}
 		realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
-		if realm == wbauth.RealmGlobal {
-			continue
-		}
 		out = append(out, accountInfo{
 			authIndex:  f.AuthIndex,
 			realm:      realm,

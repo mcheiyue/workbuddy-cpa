@@ -143,7 +143,7 @@ func TestSpawnTickersSkipsDisabled(t *testing.T) {
 	d.note("dn3")
 	ticker := &opsTicker{
 		spawned: map[string]bool{},
-		listCNAccountsFn: func() []accountInfo {
+		listAccountsFn: func() []accountInfo {
 			return []accountInfo{{authIndex: "dn3", callbackID: "dn3", realm: wbauth.RealmCN}}
 		},
 	}
