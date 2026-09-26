@@ -59,6 +59,11 @@ func (s *managementService) accountsHandler() (pluginapi.ManagementResponse, err
 			Nickname:  file.Label,
 		}
 		if file.AuthIndex != "" {
+			acct.DeadCount = deadSessions.count(file.AuthIndex)
+			if deadSessions.isDisabled(file.AuthIndex) {
+				acct.Disabled = true
+				acct.DisabledReason = deadSessions.reason(file.AuthIndex)
+			}
 			if rawAuth, getErr := s.hostCall(pluginabi.MethodHostAuthGet, pluginapi.HostAuthGetRequest{AuthIndex: file.AuthIndex}); getErr == nil {
 				var auth pluginapi.HostAuthGetResponse
 				if json.Unmarshal(rawAuth, &auth) == nil {

@@ -186,9 +186,7 @@ func (t *opsTicker) runClaimCredits(acct accountInfo) {
 	var claimErr error
 	defer func() {
 		recover()
-		if t.tickHook != nil {
-			t.tickHook(acct.authIndex, claimErr)
-		}
+		t.finishTask("claim", acct.authIndex, claimErr)
 	}()
 	client, err := t.httpClient(acct.callbackID)
 	if err != nil {

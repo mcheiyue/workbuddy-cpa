@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -93,6 +94,9 @@ func (t *opsTicker) spawnTickers() {
 		return
 	}
 	for _, acct := range accounts {
+		if deadSessions.isDisabled(acct.authIndex) {
+			continue // 已禁用（12153 连续 3 次）不重建 loop；解禁 = 重登换新 authIndex
+		}
 		if t.spawned[acct.authIndex] {
 			continue
 		}
@@ -162,13 +166,24 @@ func (t *opsTicker) discoverCNAccounts() []accountInfo {
 	return out
 }
 
+// finishTask 记录单次运营任务结果：生产打 [wbops] 日志（docker logs cpa 可见），
+// tickHook 仅测试注入断言用。成功与失败都记账，避免后台槽位静默失败（2026-09-27 22:00 保活无痕教训）。
+func (t *opsTicker) finishTask(task, authID string, err error) {
+	if err != nil {
+		log.Printf("[wbops] task=%s auth=%s err=%v", task, authID, err)
+	} else {
+		log.Printf("[wbops] task=%s auth=%s ok", task, authID)
+	}
+	if t.tickHook != nil {
+		t.tickHook(authID, err)
+	}
+}
+
 func (t *opsTicker) runCheckin(acct accountInfo) {
 	var checkErr error
 	defer func() {
 		recover() // ticker never panics
-		if t.tickHook != nil {
-			t.tickHook(acct.authIndex, checkErr)
-		}
+		t.finishTask("checkin", acct.authIndex, checkErr)
 	}()
 	hostFn := t.hostHTTPFn
 	if hostFn == nil {
@@ -180,7 +195,10 @@ func (t *opsTicker) runCheckin(acct accountInfo) {
 		return
 	}
 	checkErr = doCheckin(client, acct.realm, acct.cred)
-	if checkErr == nil || isAlreadyCheckin(checkErr) {
+	if isSessionDead(checkErr) {
+		deadSessions.note(acct.authIndex) // 连续 3 次 12153 → 禁用（B1/挂起#4）
+	} else if checkErr == nil || isAlreadyCheckin(checkErr) {
+		deadSessions.clear(acct.authIndex) // 成功证明 session 未死，清计次
 		remain, _, _, _, qerr := resourceSummary(client, acct.realm, acct.cred)
 		if qerr == nil {
 			globalLedger.append(ledgerEntry{

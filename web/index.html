@@ -178,7 +178,7 @@ async function loadAccounts(){
   if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号，点击「登录/添加账号」开始</div>';return}
   let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th></tr>';
   a.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.last_checkin||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
+    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.last_checkin||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
   });
   h+='</table>';document.getElementById('accountsBody').innerHTML=h;
   populateSelects(a);

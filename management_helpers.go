@@ -17,6 +17,10 @@ type managementAccount struct {
 	ExpiresAt   string `json:"expires_at,omitempty"`
 	LastCheckin string `json:"last_checkin,omitempty"`
 	QuotaError  string `json:"quota_error,omitempty"`
+	// B1/挂起#4：12153 连续计次与禁用态（内存态，见 ops_disable.go）。
+	Disabled       bool   `json:"disabled,omitempty"`
+	DisabledReason string `json:"disabled_reason,omitempty"`
+	DeadCount      int    `json:"dead_count,omitempty"`
 }
 
 // managementQuotaResp 配额刷新响应。

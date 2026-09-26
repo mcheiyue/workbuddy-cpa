@@ -98,6 +98,9 @@ func (t *opsTicker) accountLoop(acct accountInfo) {
 		}
 		task := pending[idx].task
 		pending = append(pending[:idx], pending[idx+1:]...)
+		if deadSessions.isDisabled(acct.authIndex) {
+			return // 账号已禁用：停调度；重登换新 authIndex 后 spawn 重建
+		}
 		task.run(t, acct)
 	}
 }
@@ -138,9 +141,7 @@ func (t *opsTicker) runActivity(acct accountInfo) {
 	var actErr error
 	defer func() {
 		recover() // ticker never panics
-		if t.tickHook != nil {
-			t.tickHook(acct.authIndex, actErr)
-		}
+		t.finishTask("activity", acct.authIndex, actErr)
 	}()
 	cred, err := t.freshCred(acct)
 	if err != nil {
@@ -161,9 +162,7 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 	var kaErr error
 	defer func() {
 		recover() // ticker never panics
-		if t.tickHook != nil {
-			t.tickHook(acct.authIndex, kaErr)
-		}
+		t.finishTask("keepalive", acct.authIndex, kaErr)
 	}()
 	if acct.fileName == "" || !strings.HasSuffix(strings.ToLower(acct.fileName), ".json") {
 		return // 运行时注入 auth：无物理文件可写，宿主懒刷新兜底
@@ -189,8 +188,12 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 	refreshed, err := wbauth.Refresh(ctx, client, wbauth.RealmBase(realm), wbauth.RealmOrigin(realm), cred)
 	if err != nil {
 		kaErr = fmt.Errorf("%s", checkinErrorMask(err))
+		if isSessionDead(err) {
+			deadSessions.note(acct.authIndex) // 连续 3 次 12153 → 禁用（B1/挂起#4）
+		}
 		return
 	}
+	deadSessions.clear(acct.authIndex) // 刷新成功清误判计数（ref scheduler keepalive 语义）
 	data := refreshed.Credential.AuthData(acct.fileName)
 	var saveErr error
 	for range 3 {
