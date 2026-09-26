@@ -79,11 +79,11 @@ func hostHTTPDoStream(callbackID, method, url string, header http.Header, body [
 	raw, err := call(pluginabi.MethodHostHTTPDoStream, map[string]any{
 		"host_callback_id": callbackID,
 		"request": map[string]any{
-			"Method":      method,
-			"URL":         url,
-			"Headers":     header,
-			"Body":        body,
-			"WireProfile": &pluginapi.HTTPWireProfile{HTTP1Only: true, DisableAutoCompression: true},
+			"Method":       method,
+			"URL":          url,
+			"Headers":      header,
+			"Body":         body,
+			"wire_profile": &pluginapi.HTTPWireProfile{HTTP1Only: true, DisableAutoCompression: true},
 		},
 	})
 	if err != nil {
