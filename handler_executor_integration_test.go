@@ -146,6 +146,7 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	var streamHeaders http.Header
 	var streamOffset int
 	streamFinished := make(chan struct{})
+	sourceFinished := make(chan struct{})
 	orig := hostJSONCall
 	defer func() { hostJSONCall = orig }()
 	hostJSONCall = func(method string, payload any) (json.RawMessage, error) {
@@ -197,6 +198,7 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 			}
 			return json.Marshal(map[string]any{"done": true})
 		case pluginabi.MethodHostHTTPStreamClose:
+			close(sourceFinished)
 			return json.Marshal(struct{}{})
 		}
 		return nil, fmt.Errorf("unexpected method: %s", method)
@@ -205,7 +207,7 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	storageJSON := []byte(`{"auth":{"accessToken":"test-token","refreshToken":"rt","expiresAt":9999999999,"domain":"www.codebuddy.cn","realm":"cn"},"account":{"uid":"u-test","nickname":"tester"}}`)
 	payload := []byte(`{"model":"workbuddy/stream-model","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	rawReq, _ := json.Marshal(executorStreamRequestHelper("workbuddy", "auth-u-test", "workbuddy/stream-model", storageJSON, payload, "stream-001"))
-	assertExecutorStreamReturnsBeforeCompletion(t, rawReq, streamFinished)
+	assertExecutorStreamReturnsBeforeCompletion(t, rawReq, streamFinished, sourceFinished)
 
 	assertAsyncStreamChunks(t, emittedChunks)
 }

@@ -33,7 +33,7 @@ func assertAsyncStreamChunks(t *testing.T, chunks []string) {
 	}
 }
 
-func assertExecutorStreamReturnsBeforeCompletion(t *testing.T, rawReq []byte, finished <-chan struct{}) {
+func assertExecutorStreamReturnsBeforeCompletion(t *testing.T, rawReq []byte, finished, sourceFinished <-chan struct{}) {
 	t.Helper()
 	resultCh := make(chan struct {
 		raw []byte
@@ -72,6 +72,11 @@ func assertExecutorStreamReturnsBeforeCompletion(t *testing.T, rawReq []byte, fi
 	case <-finished:
 	case <-time.After(2 * time.Second):
 		t.Fatal("background stream did not close")
+	}
+	select {
+	case <-sourceFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("upstream stream did not close")
 	}
 	var resp struct {
 		Headers http.Header `json:"Headers"`
