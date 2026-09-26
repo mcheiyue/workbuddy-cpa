@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -130,7 +131,9 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, "data: {\"id\":\"s1\",\"object\":\"chat.completion.chunk\",\"model\":\"stream-model\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n")
-		fmt.Fprint(w, "data: {\"id\":\"s1\",\"object\":\"chat.completion.chunk\",\"model\":\"stream-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"world\"},\"finish_reason\":null}]}\n\n")
+		for i := 0; i < 20; i++ {
+			fmt.Fprintf(w, "data: {\"id\":\"s1\",\"object\":\"chat.completion.chunk\",\"model\":\"stream-model\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"%d\"},\"finish_reason\":null}]}\n\n", i)
+		}
 		fmt.Fprint(w, "data: {\"id\":\"s1\",\"object\":\"chat.completion.chunk\",\"model\":\"stream-model\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
 		fmt.Fprint(w, "data: [DONE]\n\n")
 	}))
@@ -141,7 +144,8 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	var streamBody []byte
 	var streamStatus int
 	var streamHeaders http.Header
-	var streamDone bool
+	var streamOffset int
+	streamFinished := make(chan struct{})
 	orig := hostJSONCall
 	defer func() { hostJSONCall = orig }()
 	hostJSONCall = func(method string, payload any) (json.RawMessage, error) {
@@ -156,6 +160,7 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 			emittedChunks = append(emittedChunks, string(chunkBytes))
 			return json.Marshal(struct{}{})
 		case pluginabi.MethodHostStreamClose:
+			close(streamFinished)
 			return json.Marshal(struct{}{})
 		case pluginabi.MethodHostHTTPDo:
 			return mockHostHTTPDoRaw(method, payload, upstream)
@@ -171,16 +176,24 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 			if err := json.Unmarshal(raw, &hr); err != nil {
 				return nil, err
 			}
-			streamBody, streamStatus, streamHeaders, streamDone = hr.Body, hr.StatusCode, hr.Headers, false
+			streamBody, streamStatus, streamHeaders, streamOffset = hr.Body, hr.StatusCode, hr.Headers, 0
 			return json.Marshal(map[string]any{
 				"status_code": streamStatus,
 				"headers":     streamHeaders,
 				"stream_id":   "us-1",
 			})
 		case pluginabi.MethodHostHTTPStreamRead:
-			if !streamDone {
-				streamDone = true
-				return json.Marshal(map[string]any{"payload": streamBody, "done": true})
+			if streamOffset < len(streamBody) {
+				next := bytes.Index(streamBody[streamOffset:], []byte("\n\n"))
+				if next < 0 {
+					next = len(streamBody) - streamOffset
+				} else {
+					next += 2
+				}
+				end := streamOffset + next
+				payload := append([]byte(nil), streamBody[streamOffset:end]...)
+				streamOffset = end
+				return json.Marshal(map[string]any{"payload": payload})
 			}
 			return json.Marshal(map[string]any{"done": true})
 		case pluginabi.MethodHostHTTPStreamClose:
@@ -192,59 +205,7 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	storageJSON := []byte(`{"auth":{"accessToken":"test-token","refreshToken":"rt","expiresAt":9999999999,"domain":"www.codebuddy.cn","realm":"cn"},"account":{"uid":"u-test","nickname":"tester"}}`)
 	payload := []byte(`{"model":"workbuddy/stream-model","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	rawReq, _ := json.Marshal(executorStreamRequestHelper("workbuddy", "auth-u-test", "workbuddy/stream-model", storageJSON, payload, "stream-001"))
-	raw, err := handleMethod(pluginabi.MethodExecutorExecuteStream, rawReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var env struct {
-		OK     bool            `json:"ok"`
-		Result json.RawMessage `json:"result"`
-		Error  *struct {
-			Code string `json:"code"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		t.Fatal(err)
-	}
-	if !env.OK {
-		t.Fatalf("expected ok=true, envelope: %s", raw)
-	}
+	assertExecutorStreamReturnsBeforeCompletion(t, rawReq, streamFinished)
 
-	var resp struct {
-		Headers http.Header `json:"Headers"`
-	}
-	if err := json.Unmarshal(env.Result, &resp); err != nil {
-		t.Fatal(err)
-	}
-	if ct := resp.Headers.Get("Content-Type"); ct != "text/event-stream" {
-		t.Fatalf("Content-Type=%q, want text/event-stream", ct)
-	}
-
-	// 验证 StreamEmit 收到裸 JSON chunk（无 "data: " 前缀）。
-	if len(emittedChunks) == 0 {
-		t.Fatal("expected at least one emitted chunk")
-	}
-	for i, chunk := range emittedChunks {
-		if len(chunk) == 0 {
-			t.Fatalf("chunk[%d] is empty", i)
-		}
-		// 裸 JSON：应以 '{' 开头，不包含 "data: " 前缀。
-		if chunk[0] != '{' {
-			t.Fatalf("chunk[%d] does not start with '{': %q", i, chunk)
-		}
-		// 验证是合法 JSON。
-		if !json.Valid([]byte(chunk)) {
-			t.Fatalf("chunk[%d] is not valid JSON: %q", i, chunk)
-		}
-	}
-
-	// 最后一个 chunk 的 model 应为公开 ID。
-	lastChunk := emittedChunks[len(emittedChunks)-1]
-	var parsed struct {
-		Model string `json:"model"`
-	}
-	json.Unmarshal([]byte(lastChunk), &parsed)
-	if parsed.Model != "workbuddy/stream-model" {
-		t.Fatalf("last chunk model=%q, want workbuddy/stream-model", parsed.Model)
-	}
+	assertAsyncStreamChunks(t, emittedChunks)
 }

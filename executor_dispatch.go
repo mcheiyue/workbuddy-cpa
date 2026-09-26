@@ -121,10 +121,11 @@ func executorExecuteStream(ctx context.Context, req rpcExecutorRequest) (plugina
 	if err != nil {
 		return pluginapi.ExecutorStreamResponse{}, err
 	}
-	execErr := wbexecutor.ExecuteStream(ctx, cfg, execReq)
-	if execErr != nil {
-		return pluginapi.ExecutorStreamResponse{}, execErr
-	}
+	go func() {
+		if execErr := wbexecutor.ExecuteStream(ctx, cfg, execReq); execErr != nil {
+			hostStreamClose(req.StreamID, execErr.Msg)
+		}
+	}()
 	return pluginapi.ExecutorStreamResponse{
 		Headers: http.Header{"Content-Type": {"text/event-stream"}},
 	}, nil
