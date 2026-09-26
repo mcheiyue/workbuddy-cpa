@@ -18,7 +18,7 @@ const Provider = "workbuddy"
 type Credential struct {
 	AccessToken  string
 	RefreshToken string
-	ExpiresAt    int64  // Unix 秒
+	ExpiresAt    int64 // Unix 秒
 	Domain       string
 	Realm        string // "cn" 或 "global"
 	UID          string
@@ -59,16 +59,21 @@ func (c *Credential) marshalStorage() []byte {
 	return raw
 }
 
-// AuthData 转换为 CPA AuthData。fileName 为空时由调用方填充。
+// AuthData 转换为 CPA AuthData。fileName 为空时兜底为 ID+".json"，
+// 宿主磁盘扫描只认 .json 后缀（clients.go），否则重启后账号被静默跳过。
 func (c *Credential) AuthData(fileName string) pluginapi.AuthData {
 	label := c.Nickname
 	if label == "" {
 		label = c.UID
 	}
 	realm := ResolveRealm(c.Realm, c.Domain)
+	id := Provider + "-" + c.UID
+	if fileName == "" {
+		fileName = id + ".json"
+	}
 	return pluginapi.AuthData{
 		Provider:    Provider,
-		ID:          Provider + "-" + c.UID,
+		ID:          id,
 		FileName:    fileName,
 		Label:       label,
 		StorageJSON: c.marshalStorage(),

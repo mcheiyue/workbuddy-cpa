@@ -131,6 +131,22 @@ func TestAuthDataRoundtrip(t *testing.T) {
 	}
 }
 
+func TestAuthDataEmptyFileNameFallsBackToIDJSON(t *testing.T) {
+	// Given: a credential whose FileName is empty (login poll passes AuthData("")).
+	cred := Credential{UID: "u9", Nickname: "n", ExpiresAt: 1000}
+
+	// When: converted without a file name.
+	ad := cred.AuthData("")
+
+	// Then: file name falls back to ID+.json so host disk scan keeps the account after restart.
+	if ad.FileName != "workbuddy-u9.json" {
+		t.Fatalf("fileName=%q, want workbuddy-u9.json", ad.FileName)
+	}
+	if ad.ID != "workbuddy-u9" {
+		t.Errorf("id=%q", ad.ID)
+	}
+}
+
 func TestAuthDataLabelFallbackToUID(t *testing.T) {
 	// Given: credential with no nickname.
 	cred := Credential{AccessToken: "at", UID: "u1"}
