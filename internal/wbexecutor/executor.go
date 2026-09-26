@@ -130,8 +130,8 @@ func pumpStream(cfg Config, streamID string, r io.Reader, publicModel string) *E
 			}
 			if ok {
 				sawData = true
-				// 注入公开 model ID（上游返回内部 key）。
-				chunk := injectModel([]byte(payload), publicModel)
+				// 规范化上游全字段平铺格式 + 注入公开 model ID。
+				chunk := NormalizeChunk([]byte(payload), publicModel)
 				if emitErr := cfg.StreamEmit(streamID, chunk); emitErr != nil {
 					return &ExecError{Kind: ErrClient, Status: 0, Msg: "stream emit failed"}
 				}
