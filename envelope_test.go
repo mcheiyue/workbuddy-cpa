@@ -102,3 +102,62 @@ func TestErrorEnvelopeZeroStatusOmitted(t *testing.T) {
 		t.Fatalf("http_status=%d, want 0 (omitted)", env.Error.HTTPStatus)
 	}
 }
+
+// F3 回归：宿主 Envelope 错误必须透传真实 message，不再吞成固定串。
+func TestUnwrapHostEnvelopePassesThroughErrorMessage(t *testing.T) {
+	body := []byte(`{"ok":false,"error":{"code":"invalid_argument","message":"host callback ID is not open"}}`)
+	_, err := unwrapHostEnvelope(body)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got, want := err.Error(), "host callback ID is not open"; got != want {
+		t.Fatalf("error message = %q, want %q", got, want)
+	}
+}
+
+// 错误无 message 时回退固定文案，调用方仍能感知失败。
+func TestUnwrapHostEnvelopeFallbackWhenMessageEmpty(t *testing.T) {
+	body := []byte(`{"ok":false,"error":{"code":"internal"}}`)
+	_, err := unwrapHostEnvelope(body)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got, want := err.Error(), "host callback failed"; got != want {
+		t.Fatalf("error message = %q, want %q", got, want)
+	}
+}
+
+// 无 error 字段同样回退固定文案。
+func TestUnwrapHostEnvelopeFallbackWhenErrorAbsent(t *testing.T) {
+	body := []byte(`{"ok":false}`)
+	_, err := unwrapHostEnvelope(body)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got, want := err.Error(), "host callback failed"; got != want {
+		t.Fatalf("error message = %q, want %q", got, want)
+	}
+}
+
+// 成功信封返回 Result。
+func TestUnwrapHostEnvelopeSuccessReturnsResult(t *testing.T) {
+	result, err := unwrapHostEnvelope([]byte(`{"ok":true,"result":{"a":1}}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := string(result), `{"a":1}`; got != want {
+		t.Fatalf("result = %s, want %s", got, want)
+	}
+}
+
+// body 非 Envelope 形状时原样返回，不报错（与旧行为一致）。
+func TestUnwrapHostEnvelopeNonEnvelopeBodyPassthrough(t *testing.T) {
+	body := []byte(`plain-text`)
+	result, err := unwrapHostEnvelope(body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, want := string(result), "plain-text"; got != want {
+		t.Fatalf("result = %q, want %q", got, want)
+	}
+}

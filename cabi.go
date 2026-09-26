@@ -60,8 +60,6 @@ import "C"
 import (
 	"encoding/json"
 	"unsafe"
-
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
 )
 
 func init() { hostJSONCall = callHostJSONReal }
@@ -88,14 +86,7 @@ func callHostJSONReal(method string, payload any) (json.RawMessage, error) {
 	}
 	defer C.free_host_buffer(response.ptr, response.len)
 	body := C.GoBytes(unsafe.Pointer(response.ptr), C.int(response.len))
-	var envelope pluginabi.Envelope
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return json.RawMessage(body), nil
-	}
-	if !envelope.OK {
-		return nil, simpleErr("host callback failed")
-	}
-	return envelope.Result, nil
+	return unwrapHostEnvelope(body)
 }
 
 // cliproxy_plugin_init 是 C ABI 入口，宿主动态库加载时调用。

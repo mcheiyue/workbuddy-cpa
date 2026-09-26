@@ -31,3 +31,21 @@ func errorEnvelopeStatus(code, message string, status int) []byte {
 	}
 	return raw
 }
+
+// unwrapHostEnvelope 解包宿主 RPC Envelope（cabi.go 的 C ABI 路径调用）。
+// OK=false 时透传宿主真实错误串（如 "host callback ID is not open"），
+// 而不是吞成固定文案，保证调用方能读到根因。
+// body 非 Envelope 形状时原样返回，不报错。
+func unwrapHostEnvelope(body []byte) (json.RawMessage, error) {
+	var envelope pluginabi.Envelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return json.RawMessage(body), nil
+	}
+	if !envelope.OK {
+		if envelope.Error != nil && envelope.Error.Message != "" {
+			return nil, simpleErr(envelope.Error.Message)
+		}
+		return nil, simpleErr("host callback failed")
+	}
+	return envelope.Result, nil
+}
