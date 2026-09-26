@@ -33,7 +33,7 @@ func StopOpsTicker() { ops.stop() }
 
 var ops = &opsTicker{
 	now:        time.Now,
-	hostHTTPFn: newHostHTTPClient,
+	hostHTTPFn: func(string) (*http.Client, error) { return newDirectControlClient() },
 	callHostFn: callHostJSON,
 }
 
@@ -172,7 +172,7 @@ func (t *opsTicker) runCheckin(acct accountInfo) {
 	}()
 	hostFn := t.hostHTTPFn
 	if hostFn == nil {
-		hostFn = newHostHTTPClient
+		hostFn = func(string) (*http.Client, error) { return newDirectControlClient() }
 	}
 	client, err := hostFn(acct.callbackID)
 	if err != nil {

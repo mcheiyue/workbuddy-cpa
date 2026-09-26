@@ -7,9 +7,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
 )
+
+// controlHTTPTimeout 控制面直连上游的超时。
+const controlHTTPTimeout = 30 * time.Second
 
 // hostHTTPResponse 是宿主 HTTP 回调的响应。
 type hostHTTPResponse struct {
@@ -91,6 +95,14 @@ func (t hostRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // newHostHTTPClient 创建通过宿主回调路由的 HTTP 客户端。
 func newHostHTTPClient(callbackID string) (*http.Client, error) {
 	return newHostHTTPClientWithCall(callbackID, callHostJSON)
+}
+
+// newDirectControlClient 返回控制面直连上游的 HTTP 客户端。
+// 管理 API 与后台 ticker 都不在宿主分发上下文中，没有合法 host_callback_id，
+// 走宿主 HTTP 桥会被拒绝（host callback ID is not open），故直连。
+// 代价：绕过宿主代理配置；上游经 VPS 直连可达（2026-09-26 实测）。
+func newDirectControlClient() (*http.Client, error) {
+	return &http.Client{Timeout: controlHTTPTimeout}, nil
 }
 
 func newHostHTTPClientWithCall(callbackID string, call func(string, any) (json.RawMessage, error)) (*http.Client, error) {

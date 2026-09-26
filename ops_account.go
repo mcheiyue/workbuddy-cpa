@@ -111,11 +111,11 @@ func (t *opsTicker) callHost(method string, request any) (json.RawMessage, error
 	return callFn(method, request)
 }
 
-// httpClient 解析账号出站 HTTP client（测试经 hostHTTPFn 注入）。
+// httpClient 解析账号出站 HTTP client（测试经 hostHTTPFn 注入；缺省控制面直连——后台无宿主分发回调）。
 func (t *opsTicker) httpClient(callbackID string) (*http.Client, error) {
 	hostFn := t.hostHTTPFn
 	if hostFn == nil {
-		hostFn = newHostHTTPClient
+		hostFn = func(string) (*http.Client, error) { return newDirectControlClient() }
 	}
 	return hostFn(callbackID)
 }

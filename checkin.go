@@ -100,11 +100,6 @@ func checkinErrorMask(err error) string {
 	return msg
 }
 
-// newHostHTTPClientForCheckin 为签到创建宿主 HTTP 客户端。
-func newHostHTTPClientForCheckin(callbackID string) (*http.Client, error) {
-	return newHostHTTPClient(callbackID)
-}
-
 // fmtCheckinResult 格式化签到结果消息。
 func fmtCheckinResult(status string) string {
 	switch status {
