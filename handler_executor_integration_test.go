@@ -140,6 +140,10 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 
 	// 收集 StreamEmit 调用的 payload。
 	var emittedChunks []string
+	var streamBody []byte
+	var streamStatus int
+	var streamHeaders http.Header
+	var streamDone bool
 	orig := hostJSONCall
 	defer func() { hostJSONCall = orig }()
 	hostJSONCall = func(method string, payload any) (json.RawMessage, error) {
@@ -157,6 +161,30 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 			return json.Marshal(struct{}{})
 		case pluginabi.MethodHostHTTPDo:
 			return mockHostHTTPDoRaw(method, payload, upstream)
+		case pluginabi.MethodHostHTTPDoStream:
+			// 复用 do 的上游打点，转成流式 wire（status_code/stream_id）。
+			raw, err := mockHostHTTPDoRaw(pluginabi.MethodHostHTTPDo, payload, upstream)
+			if err != nil {
+				return nil, err
+			}
+			var hr hostHTTPResponse
+			if err := json.Unmarshal(raw, &hr); err != nil {
+				return nil, err
+			}
+			streamBody, streamStatus, streamHeaders, streamDone = hr.Body, hr.StatusCode, hr.Headers, false
+			return json.Marshal(map[string]any{
+				"status_code": streamStatus,
+				"headers":     streamHeaders,
+				"stream_id":   "us-1",
+			})
+		case pluginabi.MethodHostHTTPStreamRead:
+			if !streamDone {
+				streamDone = true
+				return json.Marshal(map[string]any{"payload": streamBody, "done": true})
+			}
+			return json.Marshal(map[string]any{"done": true})
+		case pluginabi.MethodHostHTTPStreamClose:
+			return json.Marshal(struct{}{})
 		}
 		return nil, fmt.Errorf("unexpected method: %s", method)
 	}

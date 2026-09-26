@@ -46,9 +46,9 @@ type aggregateResult struct {
 }
 
 type aggregateChoice struct {
-	Index        int               `json:"index"`
-	Message      aggregateMessage  `json:"message"`
-	FinishReason any               `json:"finish_reason"`
+	Index        int              `json:"index"`
+	Message      aggregateMessage `json:"message"`
+	FinishReason any              `json:"finish_reason"`
 }
 
 type aggregateMessage struct {

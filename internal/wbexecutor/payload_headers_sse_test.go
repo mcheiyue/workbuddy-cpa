@@ -13,12 +13,13 @@ import (
 // --- Payload tests ---
 
 func TestPreparePayload_ForceStreamAndUsage(t *testing.T) {
-	out := wbexecutor.PreparePayload([]byte(`{"model":"m","stream":false}`))
+	out := wbexecutor.PreparePayload([]byte(`{"model":"m","stream":false,"stream_options":{"include_usage":true}}`))
 	var obj map[string]any
 	json.Unmarshal(out, &obj)
 	if obj["stream"] != true {
 		t.Fatal("stream not forced")
 	}
+	// stream_options 已带时原样保留（上游末帧 usage 依赖它；缺省时注入）。
 	so, _ := obj["stream_options"].(map[string]any)
 	if so["include_usage"] != true {
 		t.Fatal("include_usage missing")

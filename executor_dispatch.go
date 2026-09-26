@@ -152,8 +152,9 @@ func buildExecutorConfig(req rpcExecutorRequest) (wbexecutor.Config, error) {
 		}
 	}
 	return wbexecutor.Config{
-		Doer:     client.Transport.RoundTrip,
-		Resolver: defaultRegistry,
+		Doer:       client.Transport.RoundTrip,
+		StreamDoer: makeHostStreamDoer(req.HostCallbackID),
+		Resolver:   defaultRegistry,
 	}, nil
 }
 

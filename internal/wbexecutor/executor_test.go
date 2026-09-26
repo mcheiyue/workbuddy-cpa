@@ -42,6 +42,25 @@ func errDoer(status int, body string) func(*http.Request) (*http.Response, error
 	})
 }
 
+// streamDoerOf 一次性喂 body 的 StreamDoer（单次 payload + done），
+// 模拟宿主 do_stream：数据到齐即结束，不依赖连接 EOF。
+func streamDoerOf(status int, body string) wbexecutor.StreamDoer {
+	return func(context.Context, string, string, http.Header, []byte) (wbexecutor.StreamHandle, error) {
+		return wbexecutor.StreamHandle{
+			StatusCode: status,
+			Read: func() ([]byte, bool, error) {
+				if body == "" {
+					return nil, true, nil
+				}
+				b := body
+				body = ""
+				return []byte(b), true, nil
+			},
+			Close: func() {},
+		}, nil
+	}
+}
+
 // rawDoer returns a doer that writes raw JSON (non-SSE) — for non-stream Execute tests.
 func rawDoer(body string) func(*http.Request) (*http.Response, error) {
 	return newDoer(func(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +139,12 @@ func TestExecuteStream_NoStreamID(t *testing.T) {
 func TestPumpStream_NoDataPrefix(t *testing.T) {
 	emitted := [][]byte{}
 	cfg := wbexecutor.Config{
-		Doer:        sseDoer(`{"choices":[{"delta":{"content":"hi"}}]}`),
+		// 流式路径必须走 StreamDoer；Doer（全缓冲桥）在此应完全不被触碰。
+		Doer: func(*http.Request) (*http.Response, error) {
+			t.Fatal("stream path must not use buffered Doer")
+			return nil, nil
+		},
+		StreamDoer:  streamDoerOf(200, `data: {"choices":[{"delta":{"content":"hi"}}]}`+"\n\ndata: [DONE]\n\n"),
 		StreamEmit:  func(_ string, p []byte) error { emitted = append(emitted, p); return nil },
 		StreamClose: func(string, string) {},
 	}
@@ -140,7 +164,7 @@ func TestPumpStream_NoDataPrefix(t *testing.T) {
 
 func TestExecuteStream_BusinessError(t *testing.T) {
 	cfg := wbexecutor.Config{
-		Doer:        errDoer(200, `{"code":12153,"msg":"session dead"}`),
+		StreamDoer:  streamDoerOf(200, `{"code":12153,"msg":"session dead"}`),
 		StreamEmit:  func(string, []byte) error { return nil },
 		StreamClose: func(string, string) {},
 	}
