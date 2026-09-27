@@ -37,6 +37,8 @@ type Config struct {
 	// Resolver 模型 ID 还原；nil 时用 identity 回退。
 	Resolver ModelResolver
 	Efforts  func(authID, publicModelID string) []string
+	// Degrade 账号级连续失败降权门（B2）；nil=不启用。
+	Degrade *DegradeGate
 }
 
 // StreamDoer 发起流式上游请求；header 为已构造的出站头，body 为最终 payload。

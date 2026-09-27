@@ -144,6 +144,9 @@ func executorCountTokens(req rpcExecutorRequest) (pluginapi.ExecutorResponse, er
 	return pluginapi.ExecutorResponse{Payload: payload}, nil
 }
 
+// sharedDegradeGate 聊天面账号级降权门（B2）：所有执行请求共享同一视图。
+var sharedDegradeGate = wbexecutor.NewDegradeGate()
+
 // buildExecutorConfig 构建 wbexecutor 的依赖注入。
 func buildExecutorConfig(req rpcExecutorRequest) (wbexecutor.Config, error) {
 	client, err := newHostHTTPClient(req.HostCallbackID)
@@ -157,6 +160,7 @@ func buildExecutorConfig(req rpcExecutorRequest) (wbexecutor.Config, error) {
 		StreamDoer: makeHostStreamDoer(req.HostCallbackID),
 		Resolver:   defaultRegistry,
 		Efforts:    defaultRegistry.Efforts,
+		Degrade:    sharedDegradeGate,
 	}, nil
 }
 

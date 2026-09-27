@@ -192,6 +192,9 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 	if acct.fileName == "" || !strings.HasSuffix(strings.ToLower(acct.fileName), ".json") {
 		return // 运行时注入 auth：无物理文件可写，宿主懒刷新兜底
 	}
+	unlock := lockAuthRefresh(acct.authID)
+	defer unlock()
+	// 锁内重读：并发保活各路必须见到最新 refresh_token，防止复用已轮换的 RT（ref refresh_race 同款约束）。
 	cred, err := t.freshCred(acct)
 	if err != nil {
 		kaErr = err
@@ -200,8 +203,6 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 	if cred.RefreshToken == "" {
 		return
 	}
-	unlock := lockAuthRefresh(acct.authID)
-	defer unlock()
 	client, err := t.httpClient(acct.callbackID)
 	if err != nil {
 		kaErr = err

@@ -13,7 +13,18 @@ import (
 
 // Execute 非流式执行：发请求到上游，流式强制 stream=true，
 // 本地聚合后返回合法 chat.completion JSON。
+// Execute 非流式执行（B2 降权接线：入口 fail-fast，出口记成败）。
 func Execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *ExecError) {
+	if e := cfg.Degrade.enter(req.AuthID); e != nil {
+		return nil, e
+	}
+	out, err := execute(ctx, cfg, req)
+	cfg.Degrade.note(req.AuthID, err)
+	return out, err
+}
+
+// execute 原非流式主体（降权记账由 Execute 包装层负责）。
+func execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *ExecError) {
 	resolver := cfg.resolver()
 	internalModel, err := resolver.ResolveModel(req.AuthID, req.PublicModelID)
 	if err != nil {
@@ -52,7 +63,18 @@ func Execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 // JSON（无 "data: " 前缀）。宿主负责包装 SSE（CPA 统一加 "data: " 前缀）。
 // 与旧全缓冲路径的区别：不等上游连接终结（h2 流不 END_STREAM 时旧路径死锁），
 // 数据到齐 [DONE] 即收尾。
+// ExecuteStream 流式执行（B2 降权接线：入口 fail-fast，头部结果记成败）。
 func ExecuteStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecError {
+	if e := cfg.Degrade.enter(req.AuthID); e != nil {
+		return e
+	}
+	err := executeStream(ctx, cfg, req)
+	cfg.Degrade.note(req.AuthID, err)
+	return err
+}
+
+// executeStream 原流式主体（降权记账由 ExecuteStream 包装层负责）。
+func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecError {
 	if cfg.StreamEmit == nil || cfg.StreamClose == nil {
 		return &ExecError{Kind: ErrClient, Status: http.StatusBadRequest, Msg: "stream seams not configured"}
 	}
