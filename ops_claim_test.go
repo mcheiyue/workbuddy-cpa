@@ -100,8 +100,8 @@ func TestGrowthPaths(t *testing.T) {
 // --- OpsDailyTasks schedule contains claim at slot 3 ---
 
 func TestOpsDailyTasksHasClaimSlot(t *testing.T) {
-	if len(opsDailyTasks) != 5 {
-		t.Fatalf("opsDailyTasks len=%d, want 5 (checkin/activity/claim/trial/keepalive)", len(opsDailyTasks))
+	if len(opsDailyTasks) != 6 {
+		t.Fatalf("opsDailyTasks len=%d, want 6 (checkin×2/activity/claim/trial/keepalive)", len(opsDailyTasks))
 	}
 	found := false
 	for _, task := range opsDailyTasks {
@@ -115,13 +115,13 @@ func TestOpsDailyTasksHasClaimSlot(t *testing.T) {
 	}
 }
 
-// --- buildWakes returns 4 entries ---
+// --- buildWakes returns 5 entries ---
 
-func TestBuildWakesReturns4Entries(t *testing.T) {
+func TestBuildWakesReturns5Entries(t *testing.T) {
 	now := time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)
 	wakes := buildWakes(now, wbauth.RealmCN)
-	if len(wakes) != 4 {
-		t.Fatalf("wakes=%d, want 4", len(wakes))
+	if len(wakes) != 5 {
+		t.Fatalf("wakes=%d, want 5", len(wakes))
 	}
 	names := make(map[string]bool)
 	for _, w := range wakes {
