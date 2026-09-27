@@ -205,10 +205,11 @@ async function loadModels(){
 }
 
 async function loadStats(){
-  const rs=await Promise.all([api('/accounts'),api('/credits-ledger'),api('/last-checkin')]);
+  const rs=await Promise.all([api('/accounts'),api('/credits-ledger'),api('/last-checkin'),api('/streak',{})]);
   const ad=rs[0];if(!ad)return;
   const led=(rs[1]&&rs[1].entries)||[];
   const recs=(rs[2]&&rs[2].last_checkins)||[];
+  const stk=(rs[3]&&rs[3].streaks)||[];
   const a=ad.accounts||[];
   const cn=a.filter(x=>x.realm==='cn').length;
   const today=new Date();
@@ -217,11 +218,16 @@ async function loadStats(){
   const bySource={};
   led.forEach(e=>{const s=e.source||'?';bySource[s]=(bySource[s]||0)+1});
   const srcParts=Object.keys(bySource).sort().map(s=>esc(s)+' '+bySource[s]).join(' / ');
+  const stOk=stk.filter(x=>!x.error);
+  const maxDays=stOk.length?Math.max.apply(null,stOk.map(x=>x.days||0)):0;
+  const avail=[];
+  stOk.forEach(x=>{['7d','14d','28d'].forEach(t=>{if(x['tier_'+t]==='available'&&avail.indexOf(t)<0)avail.push(t)})});
   let h='<table><tr><th>指标</th><th>值</th></tr>';
   h+='<tr><td>账号总数</td><td><strong>'+a.length+'</strong>（CN '+cn+' / Global '+(a.length-cn)+'）</td></tr>';
   h+='<tr><td>今日已签到</td><td><strong>'+signed+'</strong> / '+a.length+'</td></tr>';
   h+='<tr><td>Credits 流水</td><td>'+led.length+' 条'+(srcParts?'（'+srcParts+'）':'')+'</td></tr>';
   h+='<tr><td>签到记录</td><td>'+recs.length+' 条</td></tr>';
+  h+='<tr><td>连登</td><td><strong>'+maxDays+'</strong> 天（最长，'+stOk.length+'/'+stk.length+' 号可读）'+(avail.length?' · 可领：<strong>'+esc(avail.join('/'))+'</strong> 档':'')+'</td></tr>';
   h+='</table>';document.getElementById('statsBody').innerHTML=h;
 }
 

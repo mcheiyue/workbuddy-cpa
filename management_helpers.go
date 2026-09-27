@@ -41,6 +41,16 @@ type managementCheckinResp struct {
 	Remain  *int64 `json:"remain,omitempty"`
 }
 
+// managementStreakResp 连登天数与领奖档位状态（C3 展示；脱敏无 token）。
+type managementStreakResp struct {
+	AuthIndex string `json:"auth_index"`
+	Days      int    `json:"days"`
+	Tier7d    string `json:"tier_7d,omitempty"`
+	Tier14d   string `json:"tier_14d,omitempty"`
+	Tier28d   string `json:"tier_28d,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 // uidTail 返回 UID 尾号（最后 4 位），用于脱敏展示。
 func uidTail(uid string) string {
 	uid = strings.TrimSpace(uid)

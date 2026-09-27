@@ -181,8 +181,18 @@ func (t *opsTicker) finishTask(task, authID string, err error) {
 
 func (t *opsTicker) runCheckin(acct accountInfo) {
 	var checkErr error
+	var already bool
 	defer func() {
 		recover() // ticker never panics
+		if already {
+			// ref CheckinAlready：幂等重复视为正常（21 点补签档 9 点成功后必现），
+			// 单独打 already 行、tickHook 按成功记，不落 err=。
+			log.Printf("[wbops] task=checkin auth=%s already", acct.authIndex)
+			if t.tickHook != nil {
+				t.tickHook(acct.authIndex, nil)
+			}
+			return
+		}
 		t.finishTask("checkin", acct.authIndex, checkErr)
 	}()
 	hostFn := t.hostHTTPFn
@@ -195,6 +205,7 @@ func (t *opsTicker) runCheckin(acct accountInfo) {
 		return
 	}
 	checkErr = doCheckin(client, acct.realm, acct.cred)
+	already = checkErr != nil && isAlreadyCheckin(checkErr)
 	if isSessionDead(checkErr) {
 		deadSessions.note(acct.authIndex) // 连续 3 次 12153 → 禁用（B1/挂起#4）
 	} else if checkErr == nil || isAlreadyCheckin(checkErr) {

@@ -119,3 +119,68 @@ func (s *managementService) checkinHandler(body []byte) (pluginapi.ManagementRes
 	}
 	return jsonManagementResponse(http.StatusOK, map[string]any{"results": results})
 }
+
+// streakHandler 处理 POST /workbuddy/streak（auth_index 为空 = 全部账号）。
+// C3：直连上游 growth streak 端点，回连登天数与 7d/14d/28d 领奖档位状态。
+func (s *managementService) streakHandler(body []byte) (pluginapi.ManagementResponse, error) {
+	var request struct {
+		AuthIndex string `json:"auth_index"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil {
+		return jsonManagementError(http.StatusBadRequest, "invalid JSON body"), nil
+	}
+	request.AuthIndex = strings.TrimSpace(request.AuthIndex)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := s.hostCall(pluginabi.MethodHostAuthList, nil)
+	if err != nil {
+		return jsonManagementError(http.StatusBadGateway, "failed to list accounts"), nil
+	}
+	var result struct {
+		Files []pluginapi.HostAuthFileEntry `json:"files"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return jsonManagementError(http.StatusBadGateway, "decode auth list failed"), nil
+	}
+	results := make([]managementStreakResp, 0)
+	for _, file := range result.Files {
+		if !strings.EqualFold(file.Provider, wbauth.Provider) && !strings.EqualFold(file.Type, wbauth.Provider) {
+			continue
+		}
+		if request.AuthIndex != "" && file.AuthIndex != request.AuthIndex {
+			continue
+		}
+		resp := managementStreakResp{AuthIndex: file.AuthIndex}
+		rawAuth, getErr := s.hostCall(pluginabi.MethodHostAuthGet, pluginapi.HostAuthGetRequest{AuthIndex: file.AuthIndex})
+		var auth pluginapi.HostAuthGetResponse
+		if getErr != nil || json.Unmarshal(rawAuth, &auth) != nil {
+			resp.Error = "failed to get credential"
+			results = append(results, resp)
+			continue
+		}
+		cred, perr := wbauth.Parse(auth.JSON)
+		if perr != nil || cred.AccessToken == "" {
+			resp.Error = "invalid credential"
+			results = append(results, resp)
+			continue
+		}
+		client, cerr := s.controlClient()
+		if cerr != nil {
+			resp.Error = "host unavailable"
+			results = append(results, resp)
+			continue
+		}
+		st, serr := growthStreak(client, wbauth.ResolveRealm(cred.Realm, cred.Domain), cred)
+		if serr != nil {
+			resp.Error = quotaErrorMask(serr)
+			results = append(results, resp)
+			continue
+		}
+		resp.Days = st.Streak.Days
+		resp.Tier7d = st.Redemption.Tier7dStatus
+		resp.Tier14d = st.Redemption.Tier14dStatus
+		resp.Tier28d = st.Redemption.Tier28dStatus
+		results = append(results, resp)
+	}
+	return jsonManagementResponse(http.StatusOK, map[string]any{"streaks": results})
+}

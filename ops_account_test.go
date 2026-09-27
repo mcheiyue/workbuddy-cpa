@@ -18,8 +18,8 @@ import (
 func TestBuildWakes_FutureSlotsToday(t *testing.T) {
 	now := time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)
 	wakes := buildWakes(now, wbauth.RealmCN)
-	if len(wakes) != 4 {
-		t.Fatalf("wakes=%d, want 4 (CN scope: checkin/activity/claim/keepalive)", len(wakes))
+	if len(wakes) != 5 {
+		t.Fatalf("wakes=%d, want 5 (CN scope: checkin×2/activity/claim/keepalive)", len(wakes))
 	}
 	for _, w := range wakes {
 		if !w.at.After(now) {
@@ -36,8 +36,8 @@ func TestBuildWakes_FutureSlotsToday(t *testing.T) {
 func TestBuildWakes_RollsPastSlotsToTomorrow(t *testing.T) {
 	now := time.Date(2026, 9, 25, 23, 30, 0, 0, time.Local)
 	wakes := buildWakes(now, wbauth.RealmCN)
-	if len(wakes) != 4 {
-		t.Fatalf("wakes=%d, want 4", len(wakes))
+	if len(wakes) != 5 {
+		t.Fatalf("wakes=%d, want 5", len(wakes))
 	}
 	for _, w := range wakes {
 		if !w.at.After(now) {

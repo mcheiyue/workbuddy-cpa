@@ -38,6 +38,7 @@ type opsDailyTask struct {
 
 var opsDailyTasks = []opsDailyTask{
 	{name: "checkin", hour: 9, scope: wbauth.RealmCN, run: (*opsTicker).runCheckin},     // ref D4：global 无签到体系，自动跳过防风控
+	{name: "checkin", hour: 21, scope: wbauth.RealmCN, run: (*opsTicker).runCheckin},    // ref CheckinHours=[9,21] 两时点无条件都发，21 点是 9 点失败的第二次机会
 	{name: "activity", hour: 10, run: (*opsTicker).runActivity},                         // ref PR #45：CN 与 global 都上报
 	{name: "claim", hour: 11, scope: wbauth.RealmCN, run: (*opsTicker).runClaimCredits}, // ref：global growth 500，CN-only
 	{name: "trial", hour: 12, scope: wbauth.RealmGlobal, run: (*opsTicker).runTrial},    // ref trial.go：global 专属一次性加油包

@@ -19,8 +19,8 @@ func TestBuildWakes_CNScopeExcludesTrialAndGlobalOnly(t *testing.T) {
 	for _, w := range wakes {
 		names[w.task.name] = true
 	}
-	if len(wakes) != 4 {
-		t.Fatalf("CN wakes=%d, want 4 (checkin/activity/claim/keepalive)", len(wakes))
+	if len(wakes) != 5 {
+		t.Fatalf("CN wakes=%d, want 5 (checkin×2/activity/claim/keepalive)", len(wakes))
 	}
 	if names["trial"] {
 		t.Fatal("CN scope must not schedule trial (global-only)")
