@@ -115,49 +115,6 @@ func ExecuteStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 	return pumpStream(cfg, req.StreamID, br, req.PublicModelID)
 }
 
-// pumpStream 从上游 SSE 流逐帧读取，提取裸 JSON chunk，发给宿主。
-// 禁止预包 "data: "（CPA 宿主统一加 SSE 前缀）。
-func pumpStream(cfg Config, streamID string, r io.Reader, publicModel string) *ExecError {
-	br := bufio.NewReaderSize(r, 64*1024)
-	sawDone := false
-	sawData := false
-	for {
-		line, err := br.ReadString('\n')
-		trimmed := strings.TrimRight(line, "\r\n")
-		if trimmed != "" {
-			payload, done, ok := ParseSSELine(trimmed)
-			if done {
-				sawDone = true
-				break
-			}
-			if ok {
-				sawData = true
-				// 规范化上游全字段平铺格式 + 注入公开 model ID。
-				chunk := NormalizeChunk([]byte(payload), publicModel)
-				if emitErr := cfg.StreamEmit(streamID, chunk); emitErr != nil {
-					return &ExecError{Kind: ErrClient, Status: 0, Msg: "stream emit failed"}
-				}
-			}
-		}
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "stream read error"}
-		}
-	}
-	if !sawData && !sawDone {
-		cfg.StreamClose(streamID, "empty upstream stream")
-		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "upstream stream contained no valid data events"}
-	}
-	if !sawDone {
-		cfg.StreamClose(streamID, "stream ended without terminal event")
-		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "stream ended without terminal event"}
-	}
-	cfg.StreamClose(streamID, "")
-	return nil
-}
-
 // CountTokens 估算 token 数（粗略按 4 字节/token）。
 func CountTokens(payload []byte) int {
 	tokens := len(payload) / 4

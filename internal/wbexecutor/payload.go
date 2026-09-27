@@ -84,6 +84,16 @@ func PreparePayload(src []byte) []byte {
 	}
 	normalizeToolChoice(obj)
 	normalizeRoles(obj)
+	// E2 A3a：工具配对重排 + 孤儿清理（ref tool_pairing.go；11148 序列错防护）。
+	if msgs, ok := obj["messages"].([]any); ok {
+		if repacked, changed := repackToolResultBlocks(msgs); changed {
+			msgs = repacked
+			obj["messages"] = msgs
+		}
+		if cleaned, changed := cleanupOrphanToolCalls(msgs); changed {
+			obj["messages"] = cleaned
+		}
+	}
 	out, err := json.Marshal(obj)
 	if err != nil {
 		return src

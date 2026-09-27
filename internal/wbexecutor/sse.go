@@ -196,7 +196,13 @@ func Aggregate(r io.Reader) ([]byte, error) {
 		for _, idx := range toolOrder {
 			calls = append(calls, *toolCalls[idx])
 		}
-		msg.ToolCalls = calls
+		// E2 A3b：length 截断剔半截 arguments（ref truncation.go）。
+		if fr, ok := finishReason.(string); ok && fr == "length" {
+			calls = dropTruncatedCalls(calls)
+		}
+		if len(calls) > 0 {
+			msg.ToolCalls = calls
+		}
 	}
 	result := aggregateResult{
 		ID:     id,
