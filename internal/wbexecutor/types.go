@@ -36,6 +36,7 @@ type Config struct {
 	StreamClose func(streamID string, message string)
 	// Resolver 模型 ID 还原；nil 时用 identity 回退。
 	Resolver ModelResolver
+	Efforts  func(authID, publicModelID string) []string
 }
 
 // StreamDoer 发起流式上游请求；header 为已构造的出站头，body 为最终 payload。
@@ -57,6 +58,13 @@ func (c *Config) resolver() ModelResolver {
 		return c.Resolver
 	}
 	return identityResolver{}
+}
+
+func (c Config) efforts(authID, publicModelID string) []string {
+	if c.Efforts == nil {
+		return nil
+	}
+	return c.Efforts(authID, publicModelID)
 }
 
 // Credential 执行器需要的账号信息子集（从 wbauth.Credential 映射）。

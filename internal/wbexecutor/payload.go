@@ -2,8 +2,64 @@ package wbexecutor
 
 import (
 	"encoding/json"
+	"log"
 	"strings"
 )
+
+var effortRank = map[string]int{
+	"off": 0, "minimal": 1, "low": 2, "medium": 3,
+	"high": 4, "xhigh": 5, "max": 6,
+}
+
+func normalizeReasoningEffort(obj map[string]any, supported []string) {
+	if len(supported) == 0 {
+		return
+	}
+	key := ""
+	if _, ok := obj["reasoning_effort"]; ok {
+		key = "reasoning_effort"
+	} else if _, ok := obj["reasoningEffort"]; ok {
+		key = "reasoningEffort"
+	} else {
+		return
+	}
+	req, ok := obj[key].(string)
+	if !ok {
+		return
+	}
+	req = strings.TrimSpace(strings.ToLower(req))
+	reqRank, ok := effortRank[req]
+	if !ok {
+		return
+	}
+
+	best, bestRank := "", -1
+	for _, candidate := range supported {
+		rank, known := effortRank[strings.TrimSpace(strings.ToLower(candidate))]
+		if known && rank <= reqRank && rank > bestRank {
+			best, bestRank = candidate, rank
+		}
+	}
+	if best != "" {
+		if !strings.EqualFold(best, req) {
+			obj[key] = best
+			log.Printf("WARN: [workbuddy] reasoning_effort downgraded %s -> %s", req, best)
+		}
+		return
+	}
+
+	lowest, lowestRank := "", 1<<30
+	for _, candidate := range supported {
+		rank, known := effortRank[strings.TrimSpace(strings.ToLower(candidate))]
+		if known && rank < lowestRank {
+			lowest, lowestRank = candidate, rank
+		}
+	}
+	if lowest != "" {
+		obj[key] = lowest
+		log.Printf("WARN: [workbuddy] reasoning_effort floored %s -> %s", req, lowest)
+	}
+}
 
 // PreparePayload 对下游 chat completion JSON 做上游适配改写：
 //  1. 强制 stream:true（上游拒绝非流式）
@@ -33,6 +89,16 @@ func PreparePayload(src []byte) []byte {
 		return src
 	}
 	return out
+}
+
+func setModel(body []byte, model string, supported []string) ([]byte, error) {
+	var obj map[string]any
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return nil, err
+	}
+	obj["model"] = model
+	normalizeReasoningEffort(obj, supported)
+	return json.Marshal(obj)
 }
 
 // translateMaxCompletionTokens 把 OpenAI 别名 max_completion_tokens 翻译为上游

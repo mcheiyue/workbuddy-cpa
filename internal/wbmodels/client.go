@@ -67,7 +67,17 @@ func FetchAndRegister(ctx context.Context, doer Doer, realm, accessToken, authID
 		return nil, err
 	}
 	mapping, entries := FilterAndBuild(models)
-	reg.Store(authID, mapping)
+	efforts := make(map[string][]string, len(entries))
+	for _, entry := range entries {
+		levels := append([]string(nil), entry.Reasoning.SupportedEfforts...)
+		if len(levels) == 0 && strings.TrimSpace(entry.Reasoning.Effort) != "" {
+			levels = []string{entry.Reasoning.Effort}
+		}
+		if len(levels) > 0 {
+			efforts[entry.ID] = levels
+		}
+	}
+	reg.StoreWithMeta(authID, mapping, efforts)
 	return entries, nil
 }
 
@@ -79,7 +89,7 @@ func ToPluginModels(provider string, models []ModelInfo) []modelOutput {
 		mo := modelOutput{
 			ID:                m.ID,
 			Object:            "model",
-			OwnedBy:           provider,
+			OwnedBy:            provider,
 			Name:              m.ID, // Name = 内部 key（公开 ID 已在 FilterAndBuild 中替换）
 			DisplayName:       DisplayNameForModel(m.ID, m.Name),
 			SupportedGenerationMethods: []string{"chat-completions"},
@@ -103,7 +113,7 @@ type modelOutput struct {
 	Name              string            `json:"name"`
 	DisplayName       string            `json:"display_name"`
 	InputTokenLimit   int64             `json:"input_token_limit,omitempty"`
-	SupportedGenerationMethods []string `json:"supported_generation_methods"`
+	SupportedGenerationMethods []string         `json:"supported_generation_methods"`
 	Thinking          *thinkingSupport  `json:"thinking,omitempty"`
 }
 

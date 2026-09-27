@@ -22,7 +22,8 @@ func Execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	}
 	body := PreparePayload(req.Payload)
 	// 替换 model 为内部 key。
-	if err := setModel(body, internalModel); err != nil {
+	body, err = setModel(body, internalModel, cfg.efforts(req.AuthID, req.PublicModelID))
+	if err != nil {
 		return nil, &ExecError{Kind: ErrClient, Status: http.StatusBadRequest, Msg: "invalid payload"}
 	}
 	resp, execErr := doUpstream(ctx, cfg, req, body)
@@ -68,7 +69,8 @@ func ExecuteStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 			Msg: fmt.Sprintf("model resolve failed: %s", sanitizeMsg(err.Error()))}
 	}
 	body := PreparePayload(req.Payload)
-	if err := setModel(body, internalModel); err != nil {
+	body, err = setModel(body, internalModel, cfg.efforts(req.AuthID, req.PublicModelID))
+	if err != nil {
 		return &ExecError{Kind: ErrClient, Status: http.StatusBadRequest, Msg: "invalid payload"}
 	}
 	httpReq, reqErr := buildUpstreamRequest(ctx, req, body)
@@ -185,21 +187,6 @@ func doUpstream(ctx context.Context, cfg Config, req ExecuteRequest, body []byte
 		return nil, &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: sanitizeMsg(err.Error())}
 	}
 	return resp, nil
-}
-
-// setModel 在 JSON body 中设置 model 字段。
-func setModel(body []byte, model string) error {
-	var obj map[string]any
-	if err := json.Unmarshal(body, &obj); err != nil {
-		return err
-	}
-	obj["model"] = model
-	out, err := json.Marshal(obj)
-	if err != nil {
-		return err
-	}
-	copy(body, out)
-	return nil
 }
 
 // injectModel 在 JSON 中把 model 字段替换为公开 ID（响应侧）。

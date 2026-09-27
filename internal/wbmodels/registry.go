@@ -14,6 +14,7 @@ type ModelResolver interface {
 // modelRecord 存储单条映射记录：公开 ID → 内部 ID。
 type modelRecord struct {
 	internalID string
+	efforts    []string
 }
 
 // Registry per-AuthID 的模型反向映射注册表，RWMutex 并发安全。
@@ -34,7 +35,7 @@ func (r *Registry) Store(authID string, mapping map[string]string) {
 }
 
 // StoreWithMeta 存储映射快照（本阶段 meta 固定为 nil，预留扩展点）。
-func (r *Registry) StoreWithMeta(authID string, mapping map[string]string, _ any) {
+func (r *Registry) StoreWithMeta(authID string, mapping map[string]string, efforts map[string][]string) {
 	if r == nil {
 		return
 	}
@@ -49,11 +50,39 @@ func (r *Registry) StoreWithMeta(authID string, mapping map[string]string, _ any
 		if publicID == "" || internalID == "" {
 			continue
 		}
-		snapshot[publicID] = modelRecord{internalID: internalID}
+		snapshot[publicID] = modelRecord{
+			internalID: internalID,
+			efforts:    append([]string(nil), efforts[publicID]...),
+		}
 	}
 	r.mu.Lock()
 	r.byAuth[authID] = snapshot
 	r.mu.Unlock()
+}
+
+// Efforts returns the reasoning levels registered for a public model ID.
+func (r *Registry) Efforts(authID, publicID string) []string {
+	if r == nil {
+		return nil
+	}
+	authID = strings.TrimSpace(authID)
+	publicID = strings.TrimSpace(publicID)
+	if authID == "" || publicID == "" {
+		return nil
+	}
+	r.mu.RLock()
+	mapping := r.byAuth[authID]
+	record := mapping[publicID]
+	if record.internalID == "" {
+		if strings.HasPrefix(strings.ToLower(publicID), provider+"/") {
+			record = mapping[publicID[len(provider)+1:]]
+		} else {
+			record = mapping[provider+"/"+publicID]
+		}
+	}
+	levels := append([]string(nil), record.efforts...)
+	r.mu.RUnlock()
+	return levels
 }
 
 // ResolveModel 实现 ModelResolver 接口：按 authID 查公开 ID → 内部 key。

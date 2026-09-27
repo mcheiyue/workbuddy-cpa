@@ -79,20 +79,36 @@ func toPluginModelInfo(models []wbmodels.ModelInfo) []pluginapi.ModelInfo {
 	out := make([]pluginapi.ModelInfo, 0, len(models))
 	for _, m := range models {
 		info := pluginapi.ModelInfo{
-			ID:                m.ID,
-			Object:            "model",
-			OwnedBy:           wbauth.Provider,
-			Name:              m.ID,
-			DisplayName:       wbmodels.DisplayNameForModel(m.ID, m.Name),
+			ID:                         m.ID,
+			Object:                     "model",
+			OwnedBy:                    wbauth.Provider,
+			Name:                       m.ID,
+			DisplayName:                wbmodels.DisplayNameForModel(m.ID, m.Name),
 			SupportedGenerationMethods: []string{"chat-completions"},
 		}
 		if m.SupportsReason {
-			info.Thinking = &pluginapi.ThinkingSupport{ZeroAllowed: true}
+			info.Thinking = &pluginapi.ThinkingSupport{
+				ZeroAllowed: true,
+				Levels:      reasoningLevels(m),
+			}
 		}
 		if m.MaxInputTokens > 0 {
 			info.InputTokenLimit = m.MaxInputTokens
+			info.ContextLength = m.MaxInputTokens
+		}
+		if m.MaxOutputTokens > 0 {
+			info.OutputTokenLimit = m.MaxOutputTokens
+			info.MaxCompletionTokens = m.MaxOutputTokens
 		}
 		out = append(out, info)
 	}
 	return out
+}
+
+func reasoningLevels(m wbmodels.ModelInfo) []string {
+	levels := append([]string(nil), m.Reasoning.SupportedEfforts...)
+	if len(levels) == 0 && strings.TrimSpace(m.Reasoning.Effort) != "" {
+		levels = []string{m.Reasoning.Effort}
+	}
+	return levels
 }
