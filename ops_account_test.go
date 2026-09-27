@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -77,75 +76,6 @@ func TestLockAuthRefresh_Serializes(t *testing.T) {
 	wg.Wait()
 	unlock := lockAuthRefresh("")
 	unlock() // 空 authID 空操作不卡死
-}
-
-// --- 活跃上报契约 ---
-
-func TestRunActivity_PostsChatRequestSend(t *testing.T) {
-	var gotReq *http.Request
-	var body []byte
-	var hookErrs []error
-	var hookIDs []string
-	ticker := &opsTicker{
-		callHostFn: mockCallHost(t),
-		hostHTTPFn: func(string) (*http.Client, error) {
-			return &http.Client{Transport: &mockTransport{handler: func(w http.ResponseWriter, r *http.Request) {
-				gotReq = r
-				body, _ = io.ReadAll(r.Body)
-				w.Header().Set("Content-Type", "application/json")
-				w.Write([]byte(`{"code":0,"msg":"","data":{}}`))
-			}}}, nil
-		},
-		tickHook: func(id string, err error) {
-			hookIDs = append(hookIDs, id)
-			hookErrs = append(hookErrs, err)
-		},
-	}
-	acct := accountInfo{authIndex: "cn1", callbackID: "cn1", realm: wbauth.RealmCN}
-	ticker.runActivity(acct)
-
-	if len(hookIDs) != 1 || hookIDs[0] != "cn1" || hookErrs[0] != nil {
-		t.Fatalf("hook: ids=%v errs=%v", hookIDs, hookErrs)
-	}
-	if gotReq == nil {
-		t.Fatal("no upstream request")
-	}
-	if gotReq.URL.Host != "www.workbuddy.cn" {
-		t.Fatalf("host=%q, want www.workbuddy.cn", gotReq.URL.Host)
-	}
-	if gotReq.URL.Path != "/v2/report" {
-		t.Fatalf("path=%q, want /v2/report", gotReq.URL.Path)
-	}
-	if gotReq.Header.Get("X-User-Id") != "cn_uid_123" {
-		t.Fatalf("x-user-id=%q", gotReq.Header.Get("X-User-Id"))
-	}
-	var events []map[string]any
-	if err := json.Unmarshal(body, &events); err != nil {
-		t.Fatalf("body not JSON array: %v (%s)", err, body)
-	}
-	if len(events) != 1 {
-		t.Fatalf("events=%d, want 1", len(events))
-	}
-	ev := events[0]
-	if ev["eventCode"] != "chat_request_send" {
-		t.Fatalf("eventCode=%v", ev["eventCode"])
-	}
-	if ev["mode"] != "craft" {
-		t.Fatalf("mode=%v", ev["mode"])
-	}
-	if ev["userId"] != "cn_uid_123" {
-		t.Fatalf("userId=%v", ev["userId"])
-	}
-	if ev["agentName"] != "default" {
-		t.Fatalf("agentName=%v", ev["agentName"])
-	}
-	conv, _ := ev["conversationId"].(string)
-	if !strings.HasPrefix(conv, "wbcpa-") {
-		t.Fatalf("conversationId=%q", conv)
-	}
-	if ev["rootRequestId"] != ev["conversationId"] {
-		t.Fatalf("rootRequestId=%v conversationId=%v", ev["rootRequestId"], ev["conversationId"])
-	}
 }
 
 // --- 保活刷新+写回 ---

@@ -156,6 +156,7 @@ func (t *opsTicker) freshCred(acct accountInfo) (wbauth.Credential, error) {
 }
 
 // runActivity 每日对话活跃上报（CN+Global；ref PR #45 实测国际版 /v2/report 可用）。
+// 上报成功后回读连登自检（ref checkActivityStreak）：200 ≠ streak 计分，发现静默丢弃。
 func (t *opsTicker) runActivity(acct accountInfo) {
 	var actErr error
 	defer func() {
@@ -173,6 +174,10 @@ func (t *opsTicker) runActivity(acct accountInfo) {
 		return
 	}
 	actErr = sendActivityReport(client, acct.realm, cred)
+	if actErr != nil {
+		return // 单条失败已停发，回读无意义
+	}
+	t.checkActivityStreak(acct, client, cred)
 }
 
 // runKeepalive 每日 token 保活：刷新轮换后写回宿主。
