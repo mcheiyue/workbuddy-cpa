@@ -56,6 +56,8 @@ func execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	}
 	// 替换响应中的 model 为公开 ID（上游返回内部 key，消费方要公开 ID）。
 	result := injectModel(raw, req.PublicModelID)
+	// C4：非流 usage.credit 消耗观测（credit 缺失由提取器忽略）。
+	noteUsageJSON(cfg, req.AuthID, req.PublicModelID, raw)
 	return result, nil
 }
 
@@ -129,12 +131,12 @@ func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 			return bizErr
 		}
 		// JSON 但非业务错误：br 已耗尽，pumpStream 走 empty-stream 收尾（对齐旧路径）。
-		return pumpStream(cfg, req.StreamID, br, req.PublicModelID)
+		return pumpStream(cfg, req.AuthID, req.StreamID, br, req.PublicModelID)
 	}
 	if err := br.UnreadByte(); err != nil {
 		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "stream read error"}
 	}
-	return pumpStream(cfg, req.StreamID, br, req.PublicModelID)
+	return pumpStream(cfg, req.AuthID, req.StreamID, br, req.PublicModelID)
 }
 
 // CountTokens 估算 token 数（粗略按 4 字节/token）。

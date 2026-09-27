@@ -277,12 +277,25 @@ async function loadLastCheckin(){
 async function loadCreditsLedger(){
   const d=await api('/credits-ledger');if(!d)return;
   const entries=d.entries||[];
-  if(!entries.length){document.getElementById('creditsLedgerBody').innerHTML='<div class="empty">暂无流水记录</div>';return}
-  let h='<table><tr><th>时间</th><th>账号</th><th>余额</th><th>来源</th></tr>';
-  entries.forEach(e=>{
-    h+='<tr><td>'+esc(e.ts)+'</td><td>'+esc(e.auth_id)+'</td><td>'+e.balance.toLocaleString()+'</td><td>'+esc(e.source)+'</td></tr>';
-  });
-  h+='</table>';document.getElementById('creditsLedgerBody').innerHTML=h;
+  const mc=d.model_costs||{};
+  let h='';
+  const rows=[];
+  Object.keys(mc).forEach(a=>{Object.keys(mc[a]).forEach(m=>{rows.push([a,m,mc[a][m]])})});
+  if(rows.length){
+    h+='<div style="margin-bottom:12px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">模型成本（usage.credit 消耗观测，/千 token，EMA）</div><table><tr><th>账号</th><th>模型</th><th>单价</th><th>样本</th><th>最近</th></tr>';
+    rows.forEach(r=>{
+      h+='<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td>'+r[2].cost_per_1k.toFixed(4)+'</td><td>'+r[2].samples+'</td><td>'+esc(String(r[2].last_seen||'').replace('T',' ').slice(0,19))+'</td></tr>';
+    });
+    h+='</table></div>';
+  }
+  if(entries.length){
+    h+='<table><tr><th>时间</th><th>账号</th><th>余额</th><th>来源</th></tr>';
+    entries.forEach(e=>{
+      h+='<tr><td>'+esc(e.ts)+'</td><td>'+esc(e.auth_id)+'</td><td>'+e.balance.toLocaleString()+'</td><td>'+esc(e.source)+'</td></tr>';
+    });
+    h+='</table>';
+  }else if(!rows.length){h='<div class="empty">暂无流水记录</div>'}
+  document.getElementById('creditsLedgerBody').innerHTML=h;
 }
 
 // 初始加载统计、账号与模型

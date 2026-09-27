@@ -161,6 +161,7 @@ func buildExecutorConfig(req rpcExecutorRequest) (wbexecutor.Config, error) {
 		Resolver:   defaultRegistry,
 		Efforts:    defaultRegistry.Efforts,
 		Degrade:    sharedDegradeGate,
+		OnUsage:    globalCosts.note,
 	}, nil
 }
 

@@ -48,7 +48,8 @@ func (s *opsManagementService) creditsLedgerHandler() (pluginapi.ManagementRespo
 		result = append(result, e)
 	}
 	return jsonManagementResponse(http.StatusOK, map[string]any{
-		"entries": result,
-		"note":    "本地观测非上游权威",
+		"entries":     result,
+		"model_costs": globalCosts.snapshot(),
+		"note":        "本地观测非上游权威",
 	})
 }

@@ -14,7 +14,7 @@ import (
 // finish_reason=length 时剔除半截 arguments（ref truncation 语义），
 // 其余场景按 index 聚合后完整放行；EOF 无 [DONE] 随既有错误关闭丢弃缓存。
 // 无 tool_calls 的常见流走 bytes.Contains 快路径，行为与旧版逐帧直通一致。
-func pumpStream(cfg Config, streamID string, r io.Reader, publicModel string) *ExecError {
+func pumpStream(cfg Config, authID string, streamID string, r io.Reader, publicModel string) *ExecError {
 	br := bufio.NewReaderSize(r, 64*1024)
 	sawDone := false
 	sawData := false
@@ -33,7 +33,11 @@ func pumpStream(cfg Config, streamID string, r io.Reader, publicModel string) *E
 			}
 			if ok {
 				sawData = true
-				// 规范化上游全字段平铺格式 + 注入公开 model ID。
+				// C4：末帧 usage.credit 消耗观测（credit 缺失由提取器忽略）。
+				if cfg.OnUsage != nil && strings.Contains(payload, `"usage"`) {
+					noteUsageJSON(cfg, authID, publicModel, []byte(payload))
+				}
+				// 规范化 chunk 全字段平台格式 + 注入公开 model ID。
 				chunk := NormalizeChunk([]byte(payload), publicModel)
 				if execErr := hold.feed(cfg, streamID, publicModel, chunk); execErr != nil {
 					return execErr
