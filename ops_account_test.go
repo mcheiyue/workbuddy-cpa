@@ -138,6 +138,10 @@ func TestRunKeepalive_RefreshesAndSaves(t *testing.T) {
 	if auth == nil {
 		t.Fatalf("storage missing auth block: %s", savedJSON)
 	}
+	// 写回必须带顶层 type，否则宿主重启扫描（metadata["type"]）丢账号（挂起#12）。
+	if stored["type"] != "workbuddy" {
+		t.Fatalf("storage type=%v, want workbuddy: %s", stored["type"], savedJSON)
+	}
 	if auth["accessToken"] != "new_at_123" {
 		t.Fatalf("accessToken=%v, want new_at_123", auth["accessToken"])
 	}

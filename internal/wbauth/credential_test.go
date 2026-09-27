@@ -129,6 +129,16 @@ func TestAuthDataRoundtrip(t *testing.T) {
 	if s.Auth.AccessToken != "at" || s.Auth.Realm != "global" || s.Account.UID != "u1" {
 		t.Errorf("storageJSON fields: %+v", s)
 	}
+
+	// Then: top-level type is present so host boot scan (metadata["type"]) keeps the
+	// account registered after restart — refresh write-back without it loses accounts (#12).
+	var raw map[string]any
+	if err := json.Unmarshal(ad.StorageJSON, &raw); err != nil {
+		t.Fatalf("storageJSON raw unmarshal: %v", err)
+	}
+	if raw["type"] != Provider {
+		t.Errorf("storage type=%v, want %q", raw["type"], Provider)
+	}
 }
 
 func TestAuthDataEmptyFileNameFallsBackToIDJSON(t *testing.T) {

@@ -29,6 +29,7 @@ type Credential struct {
 
 // toStorageJSON 返回嵌套形 JSON（StorageJSON 格式）。
 type storageJSON struct {
+	Type string `json:"type"`
 	Auth struct {
 		AccessToken  string `json:"accessToken"`
 		RefreshToken string `json:"refreshToken"`
@@ -46,6 +47,7 @@ type storageJSON struct {
 
 func (c *Credential) marshalStorage() []byte {
 	var s storageJSON
+	s.Type = Provider // 顶层 type：宿主重启扫描按 metadata["type"] 识别 provider，缺它账号被丢（挂起#12）
 	s.Auth.AccessToken = c.AccessToken
 	s.Auth.RefreshToken = c.RefreshToken
 	s.Auth.ExpiresAt = c.ExpiresAt
