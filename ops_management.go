@@ -11,6 +11,13 @@ type opsManagementService struct{}
 
 var defaultOpsManagementService = &opsManagementService{}
 
+// tasksHandler 处理 GET /workbuddy/tasks：进程内任务完成环（E5 任务时间线，重启即清）。
+func (s *opsManagementService) tasksHandler() (pluginapi.ManagementResponse, error) {
+	return jsonManagementResponse(http.StatusOK, map[string]any{
+		"tasks": globalTaskLog.snapshot(),
+	})
+}
+
 // lastCheckinHandler 处理 GET /workbuddy/last-checkin。
 func (s *opsManagementService) lastCheckinHandler() (pluginapi.ManagementResponse, error) {
 	entries := globalLedger.snapshot()

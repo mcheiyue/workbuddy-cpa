@@ -169,11 +169,14 @@ func (t *opsTicker) discoverAccounts() []accountInfo {
 // finishTask 记录单次运营任务结果：生产打 [wbops] 日志（docker logs cpa 可见），
 // tickHook 仅测试注入断言用。成功与失败都记账，避免后台槽位静默失败（2026-09-27 22:00 保活无痕教训）。
 func (t *opsTicker) finishTask(task, authID string, err error) {
+	entry := taskLogEntry{Ts: time.Now(), Task: task, AuthID: authID, OK: err == nil}
 	if err != nil {
+		entry.Err = err.Error()
 		log.Printf("[wbops] task=%s auth=%s err=%v", task, authID, err)
 	} else {
 		log.Printf("[wbops] task=%s auth=%s ok", task, authID)
 	}
+	globalTaskLog.append(entry)
 	if t.tickHook != nil {
 		t.tickHook(authID, err)
 	}
@@ -188,6 +191,7 @@ func (t *opsTicker) runCheckin(acct accountInfo) {
 			// ref CheckinAlready：幂等重复视为正常（21 点补签档 9 点成功后必现），
 			// 单独打 already 行、tickHook 按成功记，不落 err=。
 			log.Printf("[wbops] task=checkin auth=%s already", acct.authIndex)
+			globalTaskLog.append(taskLogEntry{Ts: time.Now(), Task: "checkin", AuthID: acct.authIndex, OK: true, Err: "already"})
 			if t.tickHook != nil {
 				t.tickHook(acct.authIndex, nil)
 			}

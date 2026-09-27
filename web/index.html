@@ -34,7 +34,15 @@ th{font-weight:600;background:var(--bg)}
 .toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;z-index:999;display:none;box-shadow:0 2px 8px var(--shadow)}
 .toast-ok{background:var(--ok)}.toast-err{background:var(--err)}.toast-info{background:var(--accent)}
 .flex-between{display:flex;justify-content:space-between;align-items:center}
-@media(max-width:600px){.header{padding:12px 16px}.container{padding:12px}.card{padding:12px}}
+.tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:2px}
+.tab{padding:8px 16px;border:none;border-radius:6px;background:var(--panel);color:var(--muted);font-size:13px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px var(--shadow)}
+.tab.active{background:var(--accent);color:#fff}
+.card[data-view]{display:none}
+body[data-view="overview"] .card[data-view="overview"],
+body[data-view="logs"] .card[data-view="logs"],
+body[data-view="accounts"] .card[data-view="accounts"],
+body[data-view="tools"] .card[data-view="tools"]{display:block}
+@media(max-width:600px){.header{padding:12px 16px}.container{padding:12px}.card{padding:12px}.tab{padding:7px 12px;font-size:12px}}
 </style>
 </head>
 <body>
@@ -45,43 +53,56 @@ th{font-weight:600;background:var(--bg)}
   <button onclick="saveKey()">保存密钥</button>
   <span id="keyStatus" style="font-size:12px;color:var(--muted)"></span>
 </div>
+<div class="tabs" id="tabs">
+  <button class="tab" data-view="overview">总览</button>
+  <button class="tab" data-view="logs">日志</button>
+  <button class="tab" data-view="accounts">账号</button>
+  <button class="tab" data-view="tools">工具</button>
+</div>
 
 <!-- 统计概览 -->
-<div class="card">
+<div class="card" data-view="overview">
   <div class="flex-between"><h2>统计概览</h2><button class="btn" onclick="loadStats()">刷新</button></div>
   <div id="statsBody"><div class="empty">点击"刷新"加载统计</div></div>
   <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
 </div>
 
 <!-- 账号列表 -->
-<div class="card">
+<div class="card" data-view="accounts">
   <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
 </div>
 
 <!-- 模型目录 -->
-<div class="card">
+<div class="card" data-view="tools">
   <div class="flex-between"><h2>模型目录</h2><button class="btn" onclick="loadModels()">刷新</button></div>
   <div id="modelsBody"><div class="empty">点击"刷新"加载模型</div></div>
   <div style="font-size:11px;color:var(--muted);margin-top:8px">来自上游目录，已按调用 ID 去重</div>
 </div>
 
+<!-- 任务时间线 -->
+<div class="card" data-view="logs">
+  <div class="flex-between"><h2>任务时间线</h2><button class="btn" onclick="loadTasks()">刷新</button></div>
+  <div id="tasksBody"><div class="empty">点击"刷新"加载任务记录</div></div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">进程内环（200 条，重启即清），本地观测非上游权威</div>
+</div>
+
 <!-- 本地签到记录 -->
-<div class="card">
+<div class="card" data-view="logs">
   <div class="flex-between"><h2>本地签到记录</h2><button class="btn" onclick="loadLastCheckin()">刷新</button></div>
   <div id="checkinRecordBody"><div class="empty">点击"刷新"加载签到记录</div></div>
   <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
 </div>
 
 <!-- Credits 流水 -->
-<div class="card">
+<div class="card" data-view="logs">
   <div class="flex-between"><h2>Credits 流水</h2><button class="btn" onclick="loadCreditsLedger()">刷新</button></div>
   <div id="creditsLedgerBody"><div class="empty">点击"刷新"加载流水</div></div>
   <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
 </div>
 
 <!-- 配额刷新 -->
-<div class="card">
+<div class="card" data-view="accounts">
   <div class="flex-between"><h2>配额信息</h2>
     <div>
       <select id="quotaAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
@@ -94,7 +115,7 @@ th{font-weight:600;background:var(--bg)}
 </div>
 
 <!-- 手动签到 -->
-<div class="card">
+<div class="card" data-view="accounts">
   <div class="flex-between"><h2>手动签到</h2>
     <div>
       <select id="checkinAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
@@ -262,6 +283,20 @@ async function doCheckin(){
   h+='</table>';document.getElementById('checkinBody').innerHTML=h;
 }
 
+async function loadTasks(){
+  const d=await api('/tasks');if(!d)return;
+  const ts=d.tasks||[];
+  if(!ts.length){document.getElementById('tasksBody').innerHTML='<div class="empty">暂无任务记录</div>';return}
+  let h='<table><tr><th>时间</th><th>任务</th><th>账号</th><th>状态</th><th>信息</th></tr>';
+  ts.slice().reverse().forEach(x=>{
+    const ok=!!x.ok;
+    const cls=ok?'status-ok':'status-error';
+    const label=ok?(x.err==='already'?'ALREADY':'OK'):'FAIL';
+    h+='<tr><td>'+esc(String(x.ts||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(x.task)+'</td><td><code style="font-size:11px">'+esc(x.auth_id)+'</code></td><td><span class="status '+cls+'">'+label+'</span></td><td>'+esc(x.err||'-')+'</td></tr>';
+  });
+  h+='</table>';document.getElementById('tasksBody').innerHTML=h;
+}
+
 async function loadLastCheckin(){
   const d=await api('/last-checkin');if(!d)return;
   const records=d.last_checkins||[];
@@ -298,7 +333,22 @@ async function loadCreditsLedger(){
   document.getElementById('creditsLedgerBody').innerHTML=h;
 }
 
-// 初始加载统计、账号与模型
+// --- tab 路由（hash 驱动，单文件内 4 视图） ---
+const VIEWS=['overview','logs','accounts','tools'];
+function setView(v){
+  if(VIEWS.indexOf(v)<0)v='overview';
+  document.body.dataset.view=v;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  if(location.hash.slice(1)!==v){history.replaceState(null,'','#'+v)}
+  if(v==='logs'&&savedKey){loadTasks()}
+}
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('.tab');if(!b)return;setView(b.dataset.view)
+});
+window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
+
+// 初始加载：路由 + 统计、账号与模型
+setView(location.hash.slice(1)||'overview');
 if(savedKey){loadStats();loadAccounts();loadModels()}
 </script>
 </body>
