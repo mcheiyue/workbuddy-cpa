@@ -40,7 +40,7 @@ func (r *taskRing) snapshot() []taskLogEntry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if len(r.entries) == 0 {
-		return nil
+		return []taskLogEntry{}
 	}
 	out := make([]taskLogEntry, len(r.entries))
 	copy(out, r.entries)

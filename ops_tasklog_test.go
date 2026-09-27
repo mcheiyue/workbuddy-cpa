@@ -38,6 +38,19 @@ func TestTaskRingAppendSnapshot(t *testing.T) {
 	}
 }
 
+// --- 空环序列化必须是 [] 而非 null（线上 0.1.26 实测 {"tasks":null} 形状缺陷） ---
+
+func TestTaskRingEmptySnapshotJSON(t *testing.T) {
+	r := newTaskRing(10)
+	raw, err := json.Marshal(map[string]any{"tasks": r.snapshot()})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(raw) != `{"tasks":[]}` {
+		t.Fatalf("want {\"tasks\":[]}, got %s", raw)
+	}
+}
+
 // --- finishTask 记环（ok/err 双分支） ---
 
 func TestFinishTaskAppendsGlobal(t *testing.T) {
