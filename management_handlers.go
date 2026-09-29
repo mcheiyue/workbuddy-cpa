@@ -10,8 +10,8 @@ import (
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbmodels"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // managementService 管理服务状态（可注入依赖供测试）。

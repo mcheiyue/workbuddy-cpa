@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // managementRegister 返回管理路由声明（/workbuddy/* 前缀 + checkin POST）。

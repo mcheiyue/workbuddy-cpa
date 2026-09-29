@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // authRefreshMutex 串行化同一账号的 refresh（ticker 保活 vs 宿主懒刷新），

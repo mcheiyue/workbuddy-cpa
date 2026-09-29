@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // swapDeadCounter 换入全新 deadSessions（包级全局；同包测试顺序执行，Cleanup 还原）。

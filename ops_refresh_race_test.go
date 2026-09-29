@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // 共享 auth 视图：模拟宿主记录，refresh 写回后 auth.get 必须见到新 refresh_token。

@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // TestModelForAuthEndToEnd 验证 model.for_auth 端到端：
@@ -48,7 +48,7 @@ func TestModelForAuthEndToEnd(t *testing.T) {
 	// 构造 model.for_auth RPC 请求。
 	storageJSON := []byte(`{"auth":{"accessToken":"test-token","refreshToken":"rt","expiresAt":9999999999,"domain":"www.codebuddy.cn","realm":"cn"},"account":{"uid":"u-test","nickname":"tester"}}`)
 	rawReq, _ := json.Marshal(rpcAuthModelRequest{
-		HostCallbackID: "test-callback",
+		HostCallbackID:   "test-callback",
 		AuthModelRequest: authModelRequestHelper("workbuddy", "auth-u-test", storageJSON),
 	})
 

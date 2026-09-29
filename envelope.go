@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginabi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 )
 
 // okEnvelope 将 result 序列化后包装为成功 Envelope。

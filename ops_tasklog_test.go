@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
-	"github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginapi"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
 // --- taskRing 环行为（截断保尾 + snapshot 拷贝） ---
