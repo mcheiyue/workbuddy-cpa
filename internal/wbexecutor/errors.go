@@ -24,6 +24,7 @@ const (
 	ErrSoftRate                      // 软限流
 	ErrServer                        // 5xx
 	ErrClient                        // 其他 4xx
+	ErrDailyBudget                   // daily_budget_exceeded 当日积分预算耗尽（网关预算闸语义）
 )
 
 func (k ErrKind) String() string {
@@ -50,6 +51,8 @@ func (k ErrKind) String() string {
 		return "server"
 	case ErrClient:
 		return "client"
+	case ErrDailyBudget:
+		return "daily_budget_exceeded"
 	default:
 		return "none"
 	}
@@ -87,6 +90,10 @@ func Classify(status int, body string) ErrKind {
 	}
 	if strings.Contains(lower, "request illegal") || strings.Contains(lower, "trial not activated") {
 		return ErrAccountFault
+	}
+	// daily_budget_exceeded 当日积分预算闸（ref workbuddy2api deff7ae），独立于通用 429 兜底。
+	if strings.Contains(body, "daily_budget_exceeded") {
+		return ErrDailyBudget
 	}
 	// 限流文案（通用 fallback）。
 	if status == http.StatusTooManyRequests || strings.Contains(lower, "rate limit") || strings.Contains(lower, "too many requests") {

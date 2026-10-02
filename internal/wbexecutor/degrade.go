@@ -85,11 +85,11 @@ func (g *DegradeGate) note(authID string, err *ExecError) {
 	}
 }
 
-// degradeKnownKind：已知原因集（429/5xx/12153/11140/11102/6004/欠费 族）。
+// degradeKnownKind：已知原因集（429/5xx/12153/11140/11102/6004/欠费/daily_budget 族）。
 func degradeKnownKind(k ErrKind) bool {
 	switch k {
 	case ErrModelRateLimit, ErrSessionDead, ErrModelBlocked, ErrAccountFault,
-		ErrHardCredit, ErrSoftRate, ErrServer:
+		ErrHardCredit, ErrSoftRate, ErrServer, ErrDailyBudget:
 		return true
 	}
 	return false
