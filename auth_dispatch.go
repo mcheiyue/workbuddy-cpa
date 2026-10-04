@@ -138,14 +138,16 @@ func handleAuthRefresh(ctx context.Context, raw []byte) (pluginapi.AuthRefreshRe
 	if err != nil {
 		return pluginapi.AuthRefreshResponse{}, err
 	}
-	// 与 ticker 保活共锁：防同一 refresh_token 并发轮换。
-	unlock := lockAuthRefresh(req.AuthID)
-	defer unlock()
-	client, err := newHostHTTPClient(req.HostCallbackID)
-	if err != nil {
-		return pluginapi.AuthRefreshResponse{}, err
-	}
-	refreshed, err := wbauth.Refresh(ctx, client, wbauth.RealmBase(wbauth.ResolveRealm(cred.Realm, cred.Domain)), wbauth.RealmOrigin(wbauth.ResolveRealm(cred.Realm, cred.Domain)), cred)
+	// E6① singleflight：与 ticker 保活同键合并——同账号并发只打一次上游，
+	// 后到者复用执行方结果，其陈旧 StorageJSON 不再被用于轮换。
+	realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
+	refreshed, err := authRefreshMutex.Do(req.AuthID, func() (wbauth.RefreshResult, error) {
+		client, err := newHostHTTPClient(req.HostCallbackID)
+		if err != nil {
+			return wbauth.RefreshResult{}, err
+		}
+		return wbauth.Refresh(ctx, client, wbauth.RealmBase(realm), wbauth.RealmOrigin(realm), cred)
+	})
 	if err != nil {
 		return pluginapi.AuthRefreshResponse{}, err
 	}

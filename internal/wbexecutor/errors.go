@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // ErrKind 错误分类，对应上游业务码和 HTTP 状态码。
@@ -60,13 +62,37 @@ func (k ErrKind) String() string {
 
 // ExecError 带分类的执行错误。
 type ExecError struct {
-	Kind   ErrKind
-	Status int
-	Msg    string // 脱敏摘要，不含 token/Authorization
+	Kind          ErrKind
+	Status        int
+	Msg           string // 脱敏摘要，不含 token/Authorization
+	RetryAfterSec int    // 上游 Retry-After 真实秒数（0=无/坏值），供降权开窗取值
 }
 
 func (e *ExecError) Error() string {
 	return fmt.Sprintf("upstream %s (http %d): %s", e.Kind, e.Status, e.Msg)
+}
+
+// ParseRetryAfter 解析 Retry-After 头（delta-seconds 或 HTTP-date）为秒数；
+// 缺失/坏值/过去时间归零（对齐 qoder classify.go ParseRetryAfter 口径）。
+func ParseRetryAfter(v string, now time.Time) int {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(v); err == nil {
+		if secs < 0 {
+			return 0
+		}
+		return secs
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		d := int(t.Sub(now).Round(time.Second).Seconds())
+		if d < 0 {
+			return 0
+		}
+		return d
+	}
+	return 0
 }
 
 // Classify 按 HTTP 状态码 + body 判定错误分类。

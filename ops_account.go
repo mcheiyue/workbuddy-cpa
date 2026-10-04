@@ -14,18 +14,9 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
-// authRefreshMutex 串行化同一账号的 refresh（ticker 保活 vs 宿主懒刷新），
-// 防止并发用同一 refresh_token 轮换导致账号废止。
+// authRefreshMutex 以账号为键合并并发 refresh（singleflight：同 key 只打一次上游，
+// 后到者复用结果），防止并发用同一 refresh_token 轮换导致账号废止。
 var authRefreshMutex = wbauth.NewRefreshMutex()
-
-// lockAuthRefresh 以 auth.ID 为键取互斥锁，返回 unlock；authID 为空时为空操作。
-func lockAuthRefresh(authID string) func() {
-	if authID == "" {
-		return func() {}
-	}
-	authRefreshMutex.Lock(authID)
-	return func() { authRefreshMutex.Unlock(authID) }
-}
 
 // opsDailyTask 每日运营任务槽（本地时间小时锚 + 0-30min 抖动，每个任务每天一次）。
 // scope 为 realm 分表："" = 两 realm 都跑；wbauth.RealmCN / RealmGlobal = 仅该 realm。
@@ -192,45 +183,44 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 	if acct.fileName == "" || !strings.HasSuffix(strings.ToLower(acct.fileName), ".json") {
 		return // 运行时注入 auth：无物理文件可写，宿主懒刷新兜底
 	}
-	unlock := lockAuthRefresh(acct.authID)
-	defer unlock()
-	// 锁内重读：并发保活各路必须见到最新 refresh_token，防止复用已轮换的 RT（ref refresh_race 同款约束）。
-	cred, err := t.freshCred(acct)
-	if err != nil {
-		kaErr = err
-		return
-	}
-	if cred.RefreshToken == "" {
-		return
-	}
-	client, err := t.httpClient(acct.callbackID)
-	if err != nil {
-		kaErr = err
-		return
-	}
-	realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	refreshed, err := wbauth.Refresh(ctx, client, wbauth.RealmBase(realm), wbauth.RealmOrigin(realm), cred)
-	if err != nil {
-		kaErr = fmt.Errorf("%s", checkinErrorMask(err))
-		if isSessionDead(err) {
-			deadSessions.note(acct.authIndex) // 连续 3 次 12153 → 禁用（B1/挂起#4）
+	// E6① singleflight：同账号并发保活合并为一次上游刷新，后到者复用结果，
+	// 避免多路各自轮换同一 refresh_token。
+	_, kaErr = authRefreshMutex.Do(acct.authID, func() (wbauth.RefreshResult, error) {
+		// 执行方重读：并发保活必须见到最新 refresh_token，防止复用已轮换的 RT（ref refresh_race 同款约束）。
+		cred, err := t.freshCred(acct)
+		if err != nil {
+			return wbauth.RefreshResult{}, err
 		}
-		return
-	}
-	deadSessions.clear(acct.authIndex) // 刷新成功清误判计数（ref scheduler keepalive 语义）
-	data := refreshed.Credential.AuthData(acct.fileName)
-	var saveErr error
-	for range 3 {
-		_, saveErr = t.callHost(pluginabi.MethodHostAuthSave, pluginapi.HostAuthSaveRequest{
-			Name: acct.fileName,
-			JSON: data.StorageJSON,
-		})
-		if saveErr == nil {
-			return // 宿主 upsert 内存记录，懒刷新路径同步看到新 token
+		if cred.RefreshToken == "" {
+			return wbauth.RefreshResult{}, nil
 		}
-		time.Sleep(time.Second)
-	}
-	kaErr = saveErr // 写回失败：不覆盖，下轮保活基于新视图重试
+		client, err := t.httpClient(acct.callbackID)
+		if err != nil {
+			return wbauth.RefreshResult{}, err
+		}
+		realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		refreshed, err := wbauth.Refresh(ctx, client, wbauth.RealmBase(realm), wbauth.RealmOrigin(realm), cred)
+		if err != nil {
+			if isSessionDead(err) {
+				deadSessions.note(acct.authIndex) // 连续 3 次 12153 → 禁用（B1/挂起#4）
+			}
+			return wbauth.RefreshResult{}, fmt.Errorf("%s", checkinErrorMask(err))
+		}
+		deadSessions.clear(acct.authIndex) // 刷新成功清误判计数（ref scheduler keepalive 语义）
+		data := refreshed.Credential.AuthData(acct.fileName)
+		var saveErr error
+		for range 3 {
+			_, saveErr = t.callHost(pluginabi.MethodHostAuthSave, pluginapi.HostAuthSaveRequest{
+				Name: acct.fileName,
+				JSON: data.StorageJSON,
+			})
+			if saveErr == nil {
+				return refreshed, nil // 宿主 upsert 内存记录，懒刷新路径同步看到新 token
+			}
+			time.Sleep(time.Second)
+		}
+		return refreshed, saveErr // 写回失败：不覆盖，下轮保活基于新视图重试
+	})
 }

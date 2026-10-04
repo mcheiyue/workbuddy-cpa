@@ -81,8 +81,19 @@ func (g *DegradeGate) note(authID string, err *ExecError) {
 	s.fails++
 	if s.fails >= degradeThreshold {
 		s.fails = 0
-		s.until = g.clock().Add(degradeCooldown)
+		s.until = g.clock().Add(degradeWindow(err))
 	}
+}
+
+// degradeWindow 开窗时长：上游带 Retry-After 用真实值，但封顶既有最大档
+// （degradeCooldown）防超长挂起；无/坏值回退固定档。
+func degradeWindow(err *ExecError) time.Duration {
+	if err != nil && err.RetryAfterSec > 0 {
+		if d := time.Duration(err.RetryAfterSec) * time.Second; d < degradeCooldown {
+			return d
+		}
+	}
+	return degradeCooldown
 }
 
 // degradeKnownKind：已知原因集（429/5xx/12153/11140/11102/6004/欠费/daily_budget 族）。

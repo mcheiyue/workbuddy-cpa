@@ -91,35 +91,50 @@ func sanitizeError(err error, cred Credential) error {
 	return fmt.Errorf("%s", msg)
 }
 
-// RefreshMutex 是 per-credential refresh 锁。
-// ponytail: 简单 per-key mutex map；若多账号并发刷新成为瓶颈，可升级为 singleflight.Group。
+// RefreshMutex 按 credential ID 合并并发 refresh（singleflight 语义）：
+// 同 key 并发只执行一次上游刷新，后到者复用结果——refresh_token 轮换下
+// 多刷一次即废号风险面（对齐 qoder refreshSingleflight）。
 type RefreshMutex struct {
-	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	mu       sync.Mutex
+	inflight map[string]*refreshResult
+}
+
+type refreshResult struct {
+	done chan struct{}
+	res  RefreshResult
+	err  error
 }
 
 // NewRefreshMutex 创建 RefreshMutex。
 func NewRefreshMutex() *RefreshMutex {
-	return &RefreshMutex{locks: make(map[string]*sync.Mutex)}
+	return &RefreshMutex{inflight: make(map[string]*refreshResult)}
 }
 
-// Lock 获取指定 credential ID 的锁。
-func (m *RefreshMutex) Lock(id string) {
-	m.mu.Lock()
-	if m.locks[id] == nil {
-		m.locks[id] = &sync.Mutex{}
+// Do 以 id 为键执行 fn：同 key 并发合并为一次执行，等待者复用其结果；
+// id 为空时直接执行（不合并，防不同账号互相吞并）。
+func (m *RefreshMutex) Do(id string, fn func() (RefreshResult, error)) (RefreshResult, error) {
+	if id == "" {
+		return fn()
 	}
-	lk := m.locks[id]
+	m.mu.Lock()
+	if r, ok := m.inflight[id]; ok {
+		m.mu.Unlock()
+		<-r.done
+		return r.res, r.err
+	}
+	r := &refreshResult{done: make(chan struct{})}
+	m.inflight[id] = r
 	m.mu.Unlock()
-	lk.Lock()
-}
 
-// Unlock 释放指定 credential ID 的锁。
-func (m *RefreshMutex) Unlock(id string) {
-	m.mu.Lock()
-	lk := m.locks[id]
-	m.mu.Unlock()
-	if lk != nil {
-		lk.Unlock()
-	}
+	defer func() {
+		close(r.done)
+		m.mu.Lock()
+		delete(m.inflight, id)
+		m.mu.Unlock()
+	}()
+
+	res, err := fn()
+	r.res = res
+	r.err = err
+	return res, err
 }

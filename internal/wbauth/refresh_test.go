@@ -194,14 +194,3 @@ func TestRefreshPreservesOldCredentialOnFailure(t *testing.T) {
 		t.Errorf("credential mutated on failure: %+v", orig)
 	}
 }
-
-func TestRefreshMutexConcurrency(t *testing.T) {
-	m := NewRefreshMutex()
-	done := make(chan struct{})
-	go func() {
-		m.Lock("key1")
-		m.Unlock("key1")
-		close(done)
-	}()
-	<-done
-}

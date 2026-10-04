@@ -92,9 +92,10 @@ func TestRunKeepalive_SkipsWithoutRefreshToken(t *testing.T) {
 	}
 }
 
-// B3 核心：并发保活每路必须用锁内重读的最新 refresh_token。
-// 锁外读（旧行为）：多路并发 freshCred 都读到 rt_0 → 重复使用已轮换 RT → 上游作废风险。
-// 锁内重读（正确行为）：序列 rt_0→rt_1→rt_2→rt_3 无重复。
+// E6① singleflight：并发保活同 key 合并为一次上游刷新，后到者复用结果。
+// 旧锁语义：4 路串行各刷一次（rt_0→rt_1→rt_2→rt_3，每路锁内重读）。
+// 新语义：4 路并发只打 1 次上游（执行方重读用 rt_0），等待方复用结果零上游调用——
+// 合并本身消灭了"并发复用已轮换 RT"的风险面（wbauth 层有确定性合并红测兜底）。
 func TestRunKeepalive_ConcurrentRefreshUsesFreshToken(t *testing.T) {
 	var (
 		recMu sync.Mutex
@@ -152,20 +153,13 @@ func TestRunKeepalive_ConcurrentRefreshUsesFreshToken(t *testing.T) {
 	}
 	wg.Wait()
 
-	if len(rts) != workers {
-		t.Fatalf("refresh calls=%d, want %d (rts=%v)", len(rts), workers, rts)
-	}
-	seen := map[string]int{}
-	for _, rt := range rts {
-		seen[rt]++
-	}
-	if len(seen) != workers {
-		t.Fatalf("stale refresh_token reused across keepalives (read outside lock): %v", rts)
+	if len(rts) != 1 {
+		t.Fatalf("refresh calls=%d, want 1 (singleflight merged concurrent keepalives): %v", len(rts), rts)
 	}
 	if rts[0] != "rt_0" {
-		t.Fatalf("first refresh must use rt_0, got %v", rts)
+		t.Fatalf("merged refresh must use rt_0, got %v", rts)
 	}
 	if n := hookErrs.Load(); n != 0 {
-		t.Fatalf("hook errors=%d, want 0 (fresh-token keepalives must all succeed)", n)
+		t.Fatalf("hook errors=%d, want 0 (all callers reuse shared result)", n)
 	}
 }

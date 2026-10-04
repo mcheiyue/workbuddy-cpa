@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -47,35 +46,6 @@ func TestBuildWakes_RollsPastSlotsToTomorrow(t *testing.T) {
 			t.Fatalf("%s expected tomorrow, got %v", w.task.name, w.at)
 		}
 	}
-}
-
-// --- 保活 refresh 互斥 ---
-
-func TestLockAuthRefresh_Serializes(t *testing.T) {
-	var wg sync.WaitGroup
-	var concurrent int
-	var mu sync.Mutex
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			unlock := lockAuthRefresh("auth-x")
-			defer unlock()
-			mu.Lock()
-			concurrent++
-			if concurrent != 1 {
-				t.Errorf("concurrent holders=%d, want 1", concurrent)
-			}
-			mu.Unlock()
-			time.Sleep(time.Millisecond)
-			mu.Lock()
-			concurrent--
-			mu.Unlock()
-		}()
-	}
-	wg.Wait()
-	unlock := lockAuthRefresh("")
-	unlock() // 空 authID 空操作不卡死
 }
 
 // --- 保活刷新+写回 ---
