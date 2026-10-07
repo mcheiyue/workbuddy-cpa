@@ -79,12 +79,19 @@ func PreparePayload(src []byte) []byte {
 	}
 	obj["stream"] = true
 	translateMaxCompletionTokens(obj)
+	// Orchids 92cc1391：上游 working shape 缺省 max_tokens=8192；显式值保留。
+	if _, has := obj["max_tokens"]; !has {
+		obj["max_tokens"] = 8192
+	}
+	// Orchids d3b099ef：缓存选择与并行调度留给上游，顶层键省略。
+	delete(obj, "prompt_cache_key")
+	delete(obj, "parallel_tool_calls")
 	if _, has := obj["stream_options"]; !has {
 		obj["stream_options"] = map[string]any{"include_usage": true}
 	}
 	normalizeToolChoice(obj)
 	normalizeRoles(obj)
-	// E2 A3a：工具配对重排 + 孤儿清理（ref tool_pairing.go；11148 序列错防护）。
+	// E2 A3a：tool 结果紧跟 tool_calls + 孤儿清理（ref tool_pairing.go，11148 破序防）
 	if msgs, ok := obj["messages"].([]any); ok {
 		if repacked, changed := repackToolResultBlocks(msgs); changed {
 			msgs = repacked
@@ -94,6 +101,9 @@ func PreparePayload(src []byte) []byte {
 			obj["messages"] = cleaned
 		}
 	}
+	// 必须在 normalizeRoles（developer→system）与 A3a 重排之后跑：
+	// 上游 11128 实测拒首条非 system；把首个 system 挪到首位或注入缺省。
+	ensureLeadingSystem(obj)
 	out, err := json.Marshal(obj)
 	if err != nil {
 		return src
@@ -205,4 +215,41 @@ func normalizeRoles(obj map[string]any) {
 			msg["role"] = "system"
 		}
 	}
+}
+
+// ensureLeadingSystem 保证 messages[0] 为 system：上游 11128 实测拒首条非 system
+// （ref buildMessages/Orchids 04753c4c）。首条已是 system 则零改动；中段存在首个
+// system 则挪到首位（content 含数组形态原样搬移，其余消息相对顺序不变）；全无则
+// 注入 Orchids defaultSystem。多个 system 不合并（合并语义无我方实证，触发式保留）。
+func ensureLeadingSystem(obj map[string]any) {
+	msgs, ok := obj["messages"].([]any)
+	if !ok || len(msgs) == 0 {
+		return
+	}
+	leadRole, _ := firstRole(msgs[0])
+	if leadRole == "system" {
+		return
+	}
+	for i, m := range msgs {
+		if r, _ := firstRole(m); r == "system" {
+			rest := make([]any, 0, len(msgs))
+			rest = append(rest, m)
+			rest = append(rest, msgs[:i]...)
+			rest = append(rest, msgs[i+1:]...)
+			obj["messages"] = rest
+			return
+		}
+	}
+	obj["messages"] = append([]any{map[string]any{
+		"role": "system", "content": "You are a helpful assistant.",
+	}}, msgs...)
+}
+
+func firstRole(m any) (string, bool) {
+	mm, ok := m.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	r, _ := mm["role"].(string)
+	return r, true
 }

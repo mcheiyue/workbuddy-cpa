@@ -40,11 +40,12 @@ func TestE2ReasoningOnlyAssistantSurvives(t *testing.T) {
 		{"role":"assistant","reasoning_content":"only","content":null}
 	]}`)
 	msgs := e2Messages(t, obj)
-	if len(msgs) != 3 {
-		t.Fatalf("messages = %d, want 3 (reasoning-only assistant dropped)", len(msgs))
+	// 04753c4c：首条 user 非 system，注入缺省 leading system → 4 条。
+	if len(msgs) != 4 {
+		t.Fatalf("messages = %d, want 4 (reasoning-only assistant dropped)", len(msgs))
 	}
 	for i, want := range []string{"think", "only"} {
-		m, _ := msgs[i+1].(map[string]any)
+		m, _ := msgs[i+2].(map[string]any)
 		if m == nil || m["reasoning_content"] != want {
 			t.Errorf("msg[%d] = %#v, want reasoning_content %q", i+1, msgs[i+1], want)
 		}
@@ -57,7 +58,8 @@ func TestE2ReasoningItemPassthrough(t *testing.T) {
 		{"role":"assistant","content":"","reasoning_content":"s",
 		 "reasoning_item":[{"type":"reasoning_text","text":"s"}]}
 	]}`)
-	m, _ := e2Messages(t, obj)[0].(map[string]any)
+	// 04753c4c：原唯一 assistant 消息，注入缺省 leading system 后 assistant 位于 [1]。
+	m, _ := e2Messages(t, obj)[1].(map[string]any)
 	item, present := m["reasoning_item"]
 	if !present {
 		t.Fatalf("reasoning_item stripped: %#v", m)
@@ -113,8 +115,9 @@ func TestE2ToolCallIndexSurvivesPairing(t *testing.T) {
 		mm, _ := m.(map[string]any)
 		roles = append(roles, mm["role"].(string))
 	}
-	if joined := strings.Join(roles, ","); joined != "user,assistant,tool,tool,system" {
-		t.Errorf("order = %s, want user,assistant,tool,tool,system", joined)
+	// 04753c4c: developer 归一 system 后 ensureLeadingSystem 挪到首位，其余相对顺序不变。
+	if joined := strings.Join(roles, ","); joined != "system,user,assistant,tool,tool" {
+		t.Errorf("order = %s, want system,user,assistant,tool,tool", joined)
 	}
 }
 

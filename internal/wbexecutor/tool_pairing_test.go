@@ -38,11 +38,12 @@ func TestPreparePayload_RepacksInterleavedMessage(t *testing.T) {
 		{"role":"developer","content":"notice"},
 		{"role":"tool","tool_call_id":"c1","content":"r1"}
 	]`)
+	// 04753c4c：developer 归一 system 后挪到首位，tool 配对相对顺序不变 → 仍 4 条。
 	if len(msgs) != 4 {
 		t.Fatalf("want 4 messages, got %d: %#v", len(msgs), msgs)
 	}
-	wantRoles := []string{"assistant", "tool", "tool", "system"}
-	wantIDs := []string{"", "c0", "c1", ""}
+	wantRoles := []string{"system", "assistant", "tool", "tool"}
+	wantIDs := []string{"", "", "c0", "c1"}
 	for i, want := range wantRoles {
 		m, _ := msgs[i].(map[string]any)
 		if m == nil {
@@ -68,10 +69,11 @@ func TestPreparePayload_PartialBatchKeepsPaired(t *testing.T) {
 			{"id":"c2","type":"function","function":{"name":"f","arguments":"{}"}}]},
 		{"role":"tool","tool_call_id":"c1","content":"ok"}
 	]`)
-	if len(msgs) != 2 {
-		t.Fatalf("want 2 messages, got %d: %#v", len(msgs), msgs)
+	// 04753c4c：注入 leading system → [system, assistant, tool]，配对断言后移。
+	if len(msgs) != 3 {
+		t.Fatalf("want 3 messages, got %d: %#v", len(msgs), msgs)
 	}
-	first, _ := msgs[0].(map[string]any)
+	first, _ := msgs[1].(map[string]any)
 	tcs := toolCallsOf(t, first)
 	if len(tcs) != 1 {
 		t.Fatalf("want 1 kept tool_call, got %d: %#v", len(tcs), tcs)
@@ -80,7 +82,7 @@ func TestPreparePayload_PartialBatchKeepsPaired(t *testing.T) {
 	if id, _ := tc0["id"].(string); id != "c1" {
 		t.Fatalf("kept tool_call id=%q, want c1", id)
 	}
-	second, _ := msgs[1].(map[string]any)
+	second, _ := msgs[2].(map[string]any)
 	if id, _ := second["tool_call_id"].(string); id != "c1" {
 		t.Fatalf("kept tool result id=%q, want c1", id)
 	}
@@ -93,10 +95,11 @@ func TestPreparePayload_OrphanToolResultDropped(t *testing.T) {
 			{"id":"c1","type":"function","function":{"name":"f","arguments":"{}"}}]},
 		{"role":"tool","tool_call_id":"c2","content":"orphan"}
 	]`)
-	if len(msgs) != 1 {
-		t.Fatalf("want 1 message, got %d: %#v", len(msgs), msgs)
+	// 04753c4c：孤儿清理后仅剩 assistant，注入 leading system → [system, assistant]。
+	if len(msgs) != 2 {
+		t.Fatalf("want 2 messages, got %d: %#v", len(msgs), msgs)
 	}
-	first, _ := msgs[0].(map[string]any)
+	first, _ := msgs[1].(map[string]any)
 	if _, has := first["tool_calls"]; has {
 		t.Fatalf("tool_calls key must be deleted when all unpaired: %#v", first)
 	}
