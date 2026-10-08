@@ -210,11 +210,20 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 		}
 		deadSessions.clear(acct.authIndex) // 刷新成功清误判计数（ref scheduler keepalive 语义）
 		data := refreshed.Credential.AuthData(acct.fileName)
+		// 写回保留宿主侧外来顶层键（priority/disabled 等）：宿主 saveAuthFile 裸写，
+		// storageJSON 只含自有键，不合并会抹掉 Phase B 实证的 priority；取键/合并
+		// 失败回退裸写（=原行为），不因元数据失败阻断刷新写回。
+		payloadJSON := data.StorageJSON
+		if oldRaw, getErr := t.authPhysicalJSON(acct.authIndex); getErr == nil {
+			if merged, mergeErr := mergeForeignAuthMetadata(oldRaw, payloadJSON); mergeErr == nil {
+				payloadJSON = merged
+			}
+		}
 		var saveErr error
 		for range 3 {
 			_, saveErr = t.callHost(pluginabi.MethodHostAuthSave, pluginapi.HostAuthSaveRequest{
 				Name: acct.fileName,
-				JSON: data.StorageJSON,
+				JSON: payloadJSON,
 			})
 			if saveErr == nil {
 				return refreshed, nil // 宿主 upsert 内存记录，懒刷新路径同步看到新 token
