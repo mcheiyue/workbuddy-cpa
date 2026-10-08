@@ -11,7 +11,7 @@ import (
 )
 
 // billingUA 逐字对照 reference headers.go（client_name != SaaS 的默认 billing UA）。
-const billingUA = "WorkBuddy/5.5.4"
+const billingUA = "WorkBuddy/5.5.6"
 
 // doBillingJSON 发 billing 域请求并解信封。
 // base 与请求头对照 reference client.go.New/BillingHeaders：

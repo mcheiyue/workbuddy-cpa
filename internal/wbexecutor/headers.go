@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultClientVersion = "5.5.4"
+	defaultClientVersion = "5.5.6"
 	defaultCliVersion    = "2.137.1"
 	chatCompletionsPath  = "/v2/chat/completions"
 	originRefererCN      = "https://www.workbuddy.cn"
