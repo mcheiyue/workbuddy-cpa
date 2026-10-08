@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
 )
 
@@ -58,6 +59,13 @@ func uidTail(uid string) string {
 		return uid
 	}
 	return "..." + uid[len(uid)-4:]
+}
+
+// fallbackLabel 判断标签是否为空或 provider 兜底名（保活写回路径的重复注册记录
+// metadata 无 email，label 落 provider）——去重时用于把兜底名升级为真实昵称。
+func fallbackLabel(label string) bool {
+	label = strings.TrimSpace(label)
+	return label == "" || strings.EqualFold(label, wbauth.Provider)
 }
 
 // jsonManagementResponse 构造 JSON 管理响应。

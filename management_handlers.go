@@ -50,8 +50,21 @@ func (s *managementService) accountsHandler() (pluginapi.ManagementResponse, err
 		return jsonManagementError(http.StatusBadGateway, "decode auth list failed"), nil
 	}
 	accounts := make([]managementAccount, 0, len(result.Files))
+	seenAuth := make(map[string]int)
 	for _, file := range result.Files {
 		if !strings.EqualFold(file.Provider, wbauth.Provider) && !strings.EqualFold(file.Type, wbauth.Provider) {
+			continue
+		}
+		// 同一文件被宿主双注册（扫描 AuthParse 与保活写回路径各一条、auth_index 相同）：
+		// 按 auth_index 去重，重复条目跳过 auth.get，并把 provider 兜底标签升级为真实昵称。
+		key := file.AuthIndex
+		if key == "" {
+			key = file.Name
+		}
+		if idx, ok := seenAuth[key]; ok {
+			if fallbackLabel(accounts[idx].Nickname) && !fallbackLabel(file.Label) {
+				accounts[idx].Nickname = file.Label
+			}
 			continue
 		}
 		acct := managementAccount{
@@ -79,6 +92,7 @@ func (s *managementService) accountsHandler() (pluginapi.ManagementResponse, err
 			}
 			acct.LastCheckin = lastLedgerTs(file.AuthIndex)
 		}
+		seenAuth[key] = len(accounts)
 		accounts = append(accounts, acct)
 	}
 	return jsonManagementResponse(http.StatusOK, map[string]any{"accounts": accounts})
@@ -99,6 +113,7 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 		return jsonManagementError(http.StatusBadGateway, "decode auth list failed"), nil
 	}
 	seen := make(map[string]bool)
+	seenAuth := make(map[string]bool)
 	type modelEntry struct {
 		ID          string `json:"id"`
 		DisplayName string `json:"display_name"`
@@ -112,6 +127,11 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 		if file.AuthIndex == "" {
 			continue
 		}
+		// 同一文件双注册时只拉取一次上游（auth_index 去重，与 accountsHandler 同因）。
+		if seenAuth[file.AuthIndex] {
+			continue
+		}
+		seenAuth[file.AuthIndex] = true
 		rawAuth, getErr := s.hostCall(pluginabi.MethodHostAuthGet, pluginapi.HostAuthGetRequest{AuthIndex: file.AuthIndex})
 		if getErr != nil {
 			continue
