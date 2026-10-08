@@ -2,7 +2,7 @@ package main
 
 const (
 	pluginID = "workbuddy"
-	version  = "0.1.30"
+	version  = "0.1.31"
 	author   = "mcheiyue"
 	repoURL  = "https://github.com/mcheiyue/workbuddy-cpa"
 )
