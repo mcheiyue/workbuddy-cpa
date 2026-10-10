@@ -22,6 +22,10 @@ type managementAccount struct {
 	Disabled       bool   `json:"disabled,omitempty"`
 	DisabledReason string `json:"disabled_reason,omitempty"`
 	DeadCount      int    `json:"dead_count,omitempty"`
+	// File 是宿主 auth 文件名（PATCH /auth-files/fields 的 name 定位键），空表示无法定位。
+	File string `json:"file,omitempty"`
+	// Priority 是宿主路由优先级（数值越大越优先，缺省 0）；不带 omitempty，0 必须回显。
+	Priority int `json:"priority"`
 }
 
 // managementQuotaResp 配额刷新响应。

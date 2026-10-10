@@ -71,6 +71,7 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
 <div class="card" data-view="accounts">
   <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">优先级：数字越大越优先（宿主选路取最高层，同层内配额加权）；改后即时生效，保活写回不会抹除。</div>
 </div>
 
 <!-- 模型目录 -->
@@ -154,6 +155,23 @@ async function authApi(path,body){
     if(!r.ok){toast('请求失败: '+r.status,'err');return null}
     return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
 }
+async function authPatch(path,body){
+  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
+  const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
+  try{const r=await fetch(AUTH_BASE+path,{method:'PATCH',headers:h,body:JSON.stringify(body)});const t=await r.text();
+    if(r.status===401){toast('管理密钥无效或过期','err');return null}
+    if(!r.ok){let msg='请求失败: '+r.status;try{const j=JSON.parse(t);if(j&&j.error)msg=j.error}catch(e){}toast(msg,'err');return null}
+    return t?JSON.parse(t):{}}catch(e){toast('请求失败: '+e.message,'err');return null}
+}
+async function savePriority(btn){
+  const file=btn.getAttribute('data-file');
+  if(!file){toast('该账号无宿主文件名，无法定位','err');return}
+  const inp=btn.parentNode.querySelector('input[data-pri]');
+  const v=parseInt(inp.value,10);
+  if(isNaN(v)){toast('优先级需为整数','err');return}
+  const d=await authPatch('/auth-files/fields',{name:file,priority:v});
+  if(d!==null){toast('优先级已保存','ok');loadAccounts()}
+}
 function toast(msg,type){
   const t=document.getElementById('toast');t.textContent=msg;
   t.className='toast toast-'+(type||'info');t.style.display='block';
@@ -197,9 +215,9 @@ async function loadAccounts(){
   const d=await api('/accounts');if(!d)return;
   const a=d.accounts||[];
   if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号，点击「登录/添加账号」开始</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th></tr>';
+  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th><th>优先级</th></tr>';
   a.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.last_checkin||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td></tr>';
+    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.last_checkin||'-')+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td><td><input type="number" data-pri value="'+(x.priority||0)+'" style="width:48px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="savePriority(this)">存</button></td></tr>';
   });
   h+='</table>';document.getElementById('accountsBody').innerHTML=h;
   populateSelects(a);

@@ -70,6 +70,11 @@ func (s *managementService) accountsHandler() (pluginapi.ManagementResponse, err
 		acct := managementAccount{
 			AuthIndex: file.AuthIndex,
 			Nickname:  file.Label,
+			Priority:  file.Priority,
+			File:      file.Name,
+		}
+		if acct.File == "" {
+			acct.File = file.ID
 		}
 		if file.AuthIndex != "" {
 			acct.DeadCount = deadSessions.count(file.AuthIndex)
