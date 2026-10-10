@@ -69,7 +69,7 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
 
 <!-- 账号列表 -->
 <div class="card" data-view="accounts">
-  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn btn-secondary" onclick="applyPriorityPreset('global')">国际优先</button><button class="btn btn-secondary" onclick="applyPriorityPreset('cn')">国内优先</button><button class="btn btn-secondary" onclick="applyPriorityPreset('clear')">全部清零</button><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
+  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('global')">国际优先</button><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('cn')">国内优先</button><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('clear')">全部清零</button><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
   <div style="font-size:11px;color:var(--muted);margin-top:8px">优先级：数字越大越优先（宿主选路取最高层，同层内配额加权）；改后即时生效，保活写回不会抹除。</div>
 </div>
@@ -136,14 +136,18 @@ let savedKey=localStorage.getItem('wb_mgmt_key')||'';
 let pollTimer=null;
 if(savedKey)document.getElementById('key').value=savedKey;
 function getKey(){return savedKey}
-function saveKey(){savedKey=document.getElementById('key').value.trim();localStorage.setItem('wb_mgmt_key',savedKey);toast(savedKey?'密钥已保存':'密钥已清除','info')}
+function saveKey(){savedKey=document.getElementById('key').value.trim();localStorage.setItem('wb_mgmt_key',savedKey);toast(savedKey?'密钥已保存':'密钥已清除','info');if(savedKey)bootstrap()}
+function errorBody(status,text){
+  try{const j=JSON.parse(text);if(j){if(j.error)return String(j.error);if(j.message)return String(j.message);if(j.msg)return String(j.msg)}}catch(e){}
+  const t=(text||'').trim();return t?t.slice(0,200):('HTTP '+status)
+}
 async function api(path,body){
   const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
   const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
   const opt=body?{method:'POST',headers:h,body:JSON.stringify(body)}:{headers:h};
   try{const r=await fetch(API+path,opt);const t=await r.text();
     if(r.status===401){toast('管理密钥无效，请检查','err');return null}
-    if(!r.ok){toast('请求失败: '+r.status,'err');return null}
+    if(!r.ok){toast('请求失败: '+errorBody(r.status,t),'err');return null}
     return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
 }
 async function authApi(path,body){
@@ -152,7 +156,7 @@ async function authApi(path,body){
   const opt=body?{method:'POST',headers:h,body:JSON.stringify(body)}:{headers:h};
   try{const r=await fetch(AUTH_BASE+path,opt);const t=await r.text();
     if(r.status===401){toast('管理密钥无效，请检查','err');return null}
-    if(!r.ok){toast('请求失败: '+r.status,'err');return null}
+    if(!r.ok){toast('请求失败: '+errorBody(r.status,t),'err');return null}
     return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
 }
 async function authPatch(path,body){
@@ -172,19 +176,31 @@ async function savePriority(btn){
   const d=await authPatch('/auth-files/fields',{name:file,priority:v});
   if(d!==null){toast('优先级已保存','ok');loadAccounts()}
 }
+let presetBusy=false;
 async function applyPriorityPreset(mode){
+  if(presetBusy){toast('优先级预设进行中，请稍候','info');return}
   const d=await api('/accounts');if(!d)return;
   const a=(d.accounts||[]).filter(x=>x.file);
+  presetBusy=true;
+  const btns=document.querySelectorAll('[data-preset]');
+  btns.forEach(b=>{b.disabled=true});
   let ok=0;
-  for(const x of a){
-    let pri=0;
-    if(mode==='global')pri=x.realm==='global'?10:0;
-    else if(mode==='cn')pri=x.realm==='cn'?10:0;
-    const r=await authPatch('/auth-files/fields',{name:x.file,priority:pri});
-    if(r!==null)ok++;
+  try{
+    for(let i=0;i<a.length;i++){
+      const x=a[i];
+      let pri=0;
+      if(mode==='global')pri=x.realm==='global'?10:0;
+      else if(mode==='cn')pri=x.realm==='cn'?10:0;
+      toast('正在写入优先级 '+(i+1)+'/'+a.length+'…','info');
+      const r=await authPatch('/auth-files/fields',{name:x.file,priority:pri});
+      if(r!==null)ok++;
+    }
+    toast('已更新 '+ok+'/'+a.length+' 个账号','ok');
+  }finally{
+    presetBusy=false;
+    btns.forEach(b=>{b.disabled=false});
+    loadAccounts();
   }
-  toast('已更新 '+ok+'/'+a.length+' 个账号','ok');
-  loadAccounts();
 }
 function toast(msg,type){
   const t=document.getElementById('toast');t.textContent=msg;
@@ -287,8 +303,12 @@ async function loadStats(){
 async function refreshQuota(){
   const idx=document.getElementById('quotaAuthIdx').value;
   if(!idx){toast('请选择账号','err');return}
+  const btn=document.querySelector('button[onclick="refreshQuota()"]');
+  if(btn){if(btn.disabled)return;btn.disabled=true}
   toast('正在查询配额...','info');
-  const d=await api('/quota',{auth_index:idx});if(!d)return;
+  const d=await api('/quota',{auth_index:idx});
+  if(btn)btn.disabled=false;
+  if(!d)return;
   if(d.error){document.getElementById('quotaBody').innerHTML='<div class="status status-error">查询失败: '+esc(d.error)+'</div>';return}
   let h='<table><tr><th>指标</th><th>值</th></tr>';
   h+='<tr><td>剩余额度</td><td><strong>'+d.remain.toLocaleString()+'</strong> 积分</td></tr>';
@@ -302,9 +322,13 @@ async function refreshQuota(){
 
 async function doCheckin(){
   const idx=document.getElementById('checkinAuthIdx').value;
+  const btn=document.querySelector('button[onclick="doCheckin()"]');
+  if(btn){if(btn.disabled)return;btn.disabled=true}
   toast('正在签到...','info');
   const body=idx?{auth_index:idx}:{};
-  const d=await api('/checkin',body);if(!d)return;
+  const d=await api('/checkin',body);
+  if(btn)btn.disabled=false;
+  if(!d)return;
   const results=d.results||[];
   if(!results.length){document.getElementById('checkinBody').innerHTML='<div class="empty">无账号可签到</div>';return}
   let h='<table><tr><th>UID</th><th>状态</th><th>信息</th><th>余额</th></tr>';
@@ -379,9 +403,10 @@ document.getElementById('tabs').addEventListener('click',e=>{
 });
 window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
 
+function bootstrap(){loadStats();loadAccounts();loadModels()}
 // 初始加载：路由 + 统计、账号与模型
 setView(location.hash.slice(1)||'overview');
-if(savedKey){loadStats();loadAccounts();loadModels()}
+if(savedKey)bootstrap()
 </script>
 </body>
 </html>
