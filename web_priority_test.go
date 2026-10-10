@@ -26,3 +26,20 @@ func TestWebUIAccountsPriorityEditor(t *testing.T) {
 		}
 	}
 }
+
+// TestWebUIAccountsPriorityPresets 锁三键预设：国际优先/国内优先/全部清零。
+// 预设必须复用 authPatch 串行 PATCH（不并发写 auth 目录），并对齐
+// wb-priority.ps1 语义：global=10 / cn=0 或反之 / 清零=全 0。
+func TestWebUIAccountsPriorityPresets(t *testing.T) {
+	html := string(workbuddyWebUI)
+	for _, want := range []string{
+		"applyPriorityPreset",
+		"国际优先",
+		"国内优先",
+		"全部清零",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("web/index.html missing %q", want)
+		}
+	}
+}

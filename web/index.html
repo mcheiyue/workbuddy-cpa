@@ -69,7 +69,7 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
 
 <!-- 账号列表 -->
 <div class="card" data-view="accounts">
-  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
+  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn btn-secondary" onclick="applyPriorityPreset('global')">国际优先</button><button class="btn btn-secondary" onclick="applyPriorityPreset('cn')">国内优先</button><button class="btn btn-secondary" onclick="applyPriorityPreset('clear')">全部清零</button><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
   <div style="font-size:11px;color:var(--muted);margin-top:8px">优先级：数字越大越优先（宿主选路取最高层，同层内配额加权）；改后即时生效，保活写回不会抹除。</div>
 </div>
@@ -171,6 +171,20 @@ async function savePriority(btn){
   if(isNaN(v)){toast('优先级需为整数','err');return}
   const d=await authPatch('/auth-files/fields',{name:file,priority:v});
   if(d!==null){toast('优先级已保存','ok');loadAccounts()}
+}
+async function applyPriorityPreset(mode){
+  const d=await api('/accounts');if(!d)return;
+  const a=(d.accounts||[]).filter(x=>x.file);
+  let ok=0;
+  for(const x of a){
+    let pri=0;
+    if(mode==='global')pri=x.realm==='global'?10:0;
+    else if(mode==='cn')pri=x.realm==='cn'?10:0;
+    const r=await authPatch('/auth-files/fields',{name:x.file,priority:pri});
+    if(r!==null)ok++;
+  }
+  toast('已更新 '+ok+'/'+a.length+' 个账号','ok');
+  loadAccounts();
 }
 function toast(msg,type){
   const t=document.getElementById('toast');t.textContent=msg;
