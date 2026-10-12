@@ -1,11 +1,12 @@
 package wbexecutor
 
 // E2 A3a：请求侧工具配对重排 + 孤儿清理。
-// ref: workbuddy2api/internal/upstream/tool_pairing.go（逐语义同构）
+// ref: workbuddy2api/internal/upstream/tool_pairing.go（b262660b 语义）
 //
 // WorkBuddy（Codex 系）会在 assistant.tool_calls 与其 tool 结果之间插入 developer 消息，
 // 上游判序列错 11148 tool_call_sequence_broken 顶死会话。
-//   - repackToolResultBlocks：把插队消息后移到整组结果之后；
+//   - repackToolResultBlocks：system/developer 插队消息（含首条结果之前）整组后移；
+//     user/assistant 是硬轮次边界，绝不跨越；
 //   - cleanupOrphanToolCalls：按 keepCalls（调用与结果 id 双侧齐全的集合）对称裁剪——
 //     修历史 bug：批内只回部分结果时不能删空整个 tool_calls 键（留下孤儿结果仍 11148）。
 // 无改动时返回原 slice（changed=false），下游按值写回不动对象。
@@ -41,8 +42,8 @@ func repackToolResultBlocks(msgs []any) ([]any, bool) {
 		out = append(out, msgs[i])
 		i++
 		var results []any
-		var between []any
-		sawNonTool := false
+		var notices []any
+		noticeBeforeLaterResult := false
 		for i < len(msgs) {
 			mm, ok := msgs[i].(map[string]any)
 			if !ok {
@@ -54,28 +55,31 @@ func repackToolResultBlocks(msgs []any) ([]any, bool) {
 				if !want[id] {
 					break
 				}
-				results = append(results, msgs[i])
-				if sawNonTool {
-					changed = true
+				if len(notices) > 0 {
+					noticeBeforeLaterResult = true
 				}
+				results = append(results, msgs[i])
 				i++
 				continue
 			}
-			if len(results) == 0 {
-				break
+			// 插队消息可先于首条结果出现或夹在并行结果之间；
+			// 留在本组内、整组后移，绝不跨 user/assistant 轮次边界。
+			if role == "system" || role == "developer" {
+				notices = append(notices, msgs[i])
+				i++
+				continue
 			}
-			// 下一个 assistant.tool_calls 块的头不能被吃进本组 between。
-			if role == "assistant" {
-				if next, _ := mm["tool_calls"].([]any); len(next) > 0 {
-					break
-				}
-			}
-			between = append(between, msgs[i])
-			sawNonTool = true
-			i++
+			break
+		}
+		if len(results) == 0 {
+			out = append(out, notices...)
+			continue
+		}
+		if noticeBeforeLaterResult {
+			changed = true
 		}
 		out = append(out, results...)
-		out = append(out, between...)
+		out = append(out, notices...)
 	}
 	if !changed {
 		return msgs, false

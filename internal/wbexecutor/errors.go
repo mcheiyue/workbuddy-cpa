@@ -14,19 +14,20 @@ import (
 type ErrKind int
 
 const (
-	ErrNone           ErrKind = iota // 成功
-	ErrModelRateLimit                // 6004 模型级限流
-	ErrSessionDead                   // 12153 会话失效
-	ErrBadParams                     // 11128/11101 请求参数错误
-	ErrModelBlocked                  // 11102 该后端无此模型
-	ErrPromptTooLong                 // 11115 prompt 超长
-	ErrContentBlocked                // 审核拦截
-	ErrAccountFault                  // 账号级故障（request illegal 等）
-	ErrHardCredit                    // 余额不足
-	ErrSoftRate                      // 软限流
-	ErrServer                        // 5xx
-	ErrClient                        // 其他 4xx
-	ErrDailyBudget                   // daily_budget_exceeded 当日积分预算耗尽（网关预算闸语义）
+	ErrNone             ErrKind = iota // 成功
+	ErrModelRateLimit                  // 6004 模型级限流
+	ErrSessionDead                     // 12153 会话失效
+	ErrBadParams                       // 11128/11101 请求参数错误
+	ErrModelBlocked                    // 11102 该后端无此模型
+	ErrPromptTooLong                   // 11115 prompt 超长
+	ErrContentBlocked                  // 审核拦截
+	ErrAccountFault                    // 账号级故障（request illegal 等）
+	ErrHardCredit                      // 余额不足
+	ErrSoftRate                        // 软限流
+	ErrServer                          // 5xx
+	ErrClient                          // 其他 4xx
+	ErrDailyBudget                     // daily_budget_exceeded 当日积分预算耗尽（网关预算闸语义）
+	ErrToolCallMismatch                // 11148 工具调用/结果历史错配（请求级确定性错误，换号无用，不罚号）
 )
 
 func (k ErrKind) String() string {
@@ -55,6 +56,8 @@ func (k ErrKind) String() string {
 		return "client"
 	case ErrDailyBudget:
 		return "daily_budget_exceeded"
+	case ErrToolCallMismatch:
+		return "tool_call_mismatch"
 	default:
 		return "none"
 	}
@@ -136,6 +139,10 @@ func Classify(status int, body string) ErrKind {
 		return ErrServer
 	}
 	if status >= 400 {
+		// 11148 工具历史错配：请求体决定的确定性错误，换号无法修复（ref b262660b ErrToolCallMismatch）。
+		if status == http.StatusBadRequest && isToolCallMismatch(lower) {
+			return ErrToolCallMismatch
+		}
 		// 内容策略拦截。
 		if strings.Contains(lower, "blocked by security policy") || strings.Contains(lower, "unapproved channel") {
 			return ErrContentBlocked
@@ -163,6 +170,16 @@ func isModelBlocked(status int, body string) bool {
 func isPromptTooLongStatus(status int) bool {
 	return status == http.StatusBadRequest || status == http.StatusNotFound ||
 		status == http.StatusRequestEntityTooLarge
+}
+
+// isToolCallMismatch 判定 11148 工具历史错配（ref b262660b isToolCallMismatch）。
+// 仅认 code 字段位置的 11148，requestId 等其他字段里的同数字不误判。
+func isToolCallMismatch(lower string) bool {
+	return strings.Contains(lower, "tool calls and tool results do not match") ||
+		strings.Contains(lower, "tool_call_sequence_broken") ||
+		strings.Contains(lower, `"code":11148`) ||
+		strings.Contains(lower, `"code":"11148"`) ||
+		strings.Contains(lower, `"code": "11148"`)
 }
 
 // hasBusinessCode 检查 JSON body 中是否包含指定的业务 code 字段值。

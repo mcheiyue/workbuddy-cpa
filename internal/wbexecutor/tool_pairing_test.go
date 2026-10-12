@@ -105,6 +105,65 @@ func TestPreparePayload_OrphanToolResultDropped(t *testing.T) {
 	}
 }
 
+// ref b262660b：notice 在首条结果之前时也必须整组后移，否则 11148 残留。
+// 既有测试只覆盖"夹在两条结果之间"；这里补首结果前形状（WorkBuddy 实证插入位，
+// #1977 家族）。注意断言含 leading system 场景——那是 ensureLeadingSystem 拉不走的
+// 真实现网形状，无 leading system 时旧逻辑会被 ensureLeadingSystem 掩盖。
+func TestPreparePayload_NoticeBeforeFirstResultMovesAfterGroup(t *testing.T) {
+	msgs := prepareMessages(t, `[
+		{"role":"system","content":"main"},
+		{"role":"user","content":"Read three files"},
+		{"role":"assistant","tool_calls":[
+			{"id":"c1","type":"function","function":{"name":"f","arguments":"{}"}}]},
+		{"role":"developer","content":"notice"},
+		{"role":"tool","tool_call_id":"c1","content":"r1"}
+	]`)
+	if len(msgs) != 5 {
+		t.Fatalf("want 5 messages, got %d: %#v", len(msgs), msgs)
+	}
+	// assistant 紧邻 tool；developer 归一 system 后整组后移到尾部。
+	wantRoles := []string{"system", "user", "assistant", "tool", "system"}
+	for i, want := range wantRoles {
+		m, _ := msgs[i].(map[string]any)
+		if got, _ := m["role"].(string); got != want {
+			t.Fatalf("msg[%d] role=%q, want %q (msgs=%#v)", i, got, want, msgs)
+		}
+	}
+	tool, _ := msgs[3].(map[string]any)
+	if id, _ := tool["tool_call_id"].(string); id != "c1" {
+		t.Fatalf("msg[3] tool_call_id=%q, want c1", id)
+	}
+	notice, _ := msgs[4].(map[string]any)
+	if c, _ := notice["content"].(string); c != "notice" {
+		t.Fatalf("msg[4] content=%q, want notice", c)
+	}
+}
+
+// ref b262660b：user 是硬轮次边界——结果收集遇到 user 立即断组，
+// 不得把 user 吞进 between 后移到结果之后（跨轮改写历史）。
+func TestPreparePayload_UserBoundaryNotCrossed(t *testing.T) {
+	msgs := prepareMessages(t, `[
+		{"role":"system","content":"main"},
+		{"role":"assistant","tool_calls":[
+			{"id":"c1","type":"function","function":{"name":"f","arguments":"{}"}},
+			{"id":"c2","type":"function","function":{"name":"f","arguments":"{}"}}]},
+		{"role":"tool","tool_call_id":"c1","content":"r1"},
+		{"role":"user","content":"interrupt"},
+		{"role":"tool","tool_call_id":"c2","content":"r2"}
+	]`)
+	if len(msgs) != 5 {
+		t.Fatalf("want 5 messages, got %d: %#v", len(msgs), msgs)
+	}
+	// user 留在原位（r1 之后、r2 之前），绝不后移。
+	wantRoles := []string{"system", "assistant", "tool", "user", "tool"}
+	for i, want := range wantRoles {
+		m, _ := msgs[i].(map[string]any)
+		if got, _ := m["role"].(string); got != want {
+			t.Fatalf("msg[%d] role=%q, want %q (msgs=%#v)", i, got, want, msgs)
+		}
+	}
+}
+
 // 无工具流量的普通会话零改动（除 PreparePayload 既有的 stream 等改写外，messages 原样）。
 func TestPreparePayload_NoToolTrafficUnchanged(t *testing.T) {
 	msgs := prepareMessages(t, `[
