@@ -39,8 +39,9 @@ func TestBuildWakes_GlobalScopeExcludesCheckinAndClaim(t *testing.T) {
 	for _, w := range wakes {
 		names[w.task.name] = true
 	}
-	if len(wakes) != 3 {
-		t.Fatalf("global wakes=%d, want 3 (activity/trial/keepalive)", len(wakes))
+	if len(wakes) != 4 {
+		// 预期行为变更（2026-10-14 global 每日 quota 快照任务落地）：3→4。
+		t.Fatalf("global wakes=%d, want 4 (activity/trial/quota/keepalive)", len(wakes))
 	}
 	if names["checkin"] {
 		t.Fatal("global scope must not schedule checkin (ref D4 防风控)")

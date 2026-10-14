@@ -302,9 +302,31 @@ async function loadStats(){
 
 async function refreshQuota(){
   const idx=document.getElementById('quotaAuthIdx').value;
-  if(!idx){toast('请选择账号','err');return}
   const btn=document.querySelector('button[onclick="refreshQuota()"]');
   if(btn){if(btn.disabled)return;btn.disabled=true}
+  if(!idx){
+    // 全部账号：串行逐号查询（与预设同款串行防并发），渲染汇总表
+    const ad=await api('/accounts');if(!ad){if(btn)btn.disabled=false;return}
+    const a=(ad.accounts||[]);
+    if(!a.length){toast('无账号可查询','err');if(btn)btn.disabled=false;return}
+    let h='<table><tr><th>UID 尾号</th><th>区域</th><th>剩余</th><th>已用</th><th>总量</th><th>套餐</th></tr>';
+    let ok=0;
+    for(let i=0;i<a.length;i++){
+      toast('正在查询配额 '+(i+1)+'/'+a.length+'…','info');
+      const d=await api('/quota',{auth_index:a[i].auth_index});
+      if(d&&!d.error){
+        ok++;
+        h+='<tr><td>'+esc(a[i].uid_tail||'-')+'</td><td>'+esc(a[i].realm)+'</td><td><strong>'+d.remain.toLocaleString()+'</strong></td><td>'+d.used.toLocaleString()+'</td><td>'+d.size.toLocaleString()+'</td><td>'+d.packages+'</td></tr>';
+      }else{
+        h+='<tr><td>'+esc(a[i].uid_tail||'-')+'</td><td>'+esc(a[i].realm)+'</td><td colspan="4" style="color:var(--err)">'+esc(d&&d.error?d.error:'查询失败')+'</td></tr>';
+      }
+    }
+    h+='</table>';
+    document.getElementById('quotaBody').innerHTML=h;
+    toast('配额查询完成 '+ok+'/'+a.length,'ok');
+    if(btn)btn.disabled=false;
+    return;
+  }
   toast('正在查询配额...','info');
   const d=await api('/quota',{auth_index:idx});
   if(btn)btn.disabled=false;
@@ -380,9 +402,11 @@ async function loadCreditsLedger(){
     h+='</table></div>';
   }
   if(entries.length){
-    h+='<table><tr><th>时间</th><th>账号</th><th>余额</th><th>来源</th></tr>';
-    entries.forEach(e=>{
-      h+='<tr><td>'+esc(e.ts)+'</td><td>'+esc(e.auth_id)+'</td><td>'+e.balance.toLocaleString()+'</td><td>'+esc(e.source)+'</td></tr>';
+    h+='<table><tr><th>时间</th><th>账号</th><th>余额</th><th>变化</th><th>来源</th></tr>';
+    entries.slice().reverse().forEach(e=>{
+      const dv=e.delta||0;
+      const dcls=dv>0?'var(--ok)':dv<0?'var(--err)':'var(--muted)';
+      h+='<tr><td>'+esc(String(e.ts||'').replace('T',' ').slice(0,19))+'</td><td><code style="font-size:11px">'+esc(e.auth_id)+'</code></td><td>'+e.balance.toLocaleString()+'</td><td style="color:'+dcls+';font-weight:'+(dv?600:400)+'">'+(dv>0?'+':'')+dv+'</td><td>'+esc(e.source)+'</td></tr>';
     });
     h+='</table>';
   }else if(!rows.length){h='<div class="empty">暂无流水记录</div>'}
@@ -396,7 +420,7 @@ function setView(v){
   document.body.dataset.view=v;
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   if(location.hash.slice(1)!==v){history.replaceState(null,'','#'+v)}
-  if(v==='logs'&&savedKey){loadTasks()}
+  if(v==='logs'&&savedKey){loadTasks();loadLastCheckin();loadCreditsLedger()}
 }
 document.getElementById('tabs').addEventListener('click',e=>{
   const b=e.target.closest('.tab');if(!b)return;setView(b.dataset.view)

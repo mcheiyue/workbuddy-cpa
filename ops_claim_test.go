@@ -100,8 +100,9 @@ func TestGrowthPaths(t *testing.T) {
 // --- OpsDailyTasks schedule contains claim at slot 3 ---
 
 func TestOpsDailyTasksHasClaimSlot(t *testing.T) {
-	if len(opsDailyTasks) != 6 {
-		t.Fatalf("opsDailyTasks len=%d, want 6 (checkin×2/activity/claim/trial/keepalive)", len(opsDailyTasks))
+	if len(opsDailyTasks) != 7 {
+		// 预期行为变更（2026-10-14 global 每日 quota 快照任务落地）：6→7。
+		t.Fatalf("opsDailyTasks len=%d, want 7 (checkin×2/activity/claim/trial/quota/keepalive)", len(opsDailyTasks))
 	}
 	found := false
 	for _, task := range opsDailyTasks {
