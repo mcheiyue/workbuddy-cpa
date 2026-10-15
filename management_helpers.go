@@ -26,6 +26,9 @@ type managementAccount struct {
 	File string `json:"file,omitempty"`
 	// Priority 是宿主路由优先级（数值越大越优先，缺省 0）；不带 omitempty，0 必须回显。
 	Priority int `json:"priority"`
+	// Note 是用户自设备注名（宿主顶层 note 键，PATCH auth-files/fields 写入）；
+	// 显示时优先于 nickname——上游昵称格式混排（手机号/邮箱/显示名），备注让用户自控显示名。
+	Note string `json:"note,omitempty"`
 }
 
 // managementQuotaResp 配额刷新响应。

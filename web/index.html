@@ -176,6 +176,21 @@ async function savePriority(btn){
   const d=await authPatch('/auth-files/fields',{name:file,priority:v});
   if(d!==null){toast('优先级已保存','ok');loadAccounts()}
 }
+async function saveNote(btn){
+  const file=btn.getAttribute('data-file');
+  if(!file){toast('该账号无宿主文件名，无法定位','err');return}
+  const inp=btn.parentNode.querySelector('input[data-note]');
+  const v=(inp.value||'').trim();
+  const d=await authPatch('/auth-files/fields',{name:file,note:v});
+  if(d!==null){toast('备注已保存','ok');loadAccounts()}
+}
+function loginMethod(nickname){
+  const n=(nickname||'').trim();
+  if(!n)return '自定义(推断)';
+  if(/^\d{11}$/.test(n))return '手机(推断)';
+  if(n.indexOf('@')>-1)return '邮箱(推断)';
+  return '自定义(推断)';
+}
 let presetBusy=false;
 async function applyPriorityPreset(mode){
   if(presetBusy){toast('优先级预设进行中，请稍候','info');return}
@@ -245,9 +260,9 @@ async function loadAccounts(){
   const d=await api('/accounts');if(!d)return;
   const a=d.accounts||[];
   if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号，点击「登录/添加账号」开始</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th><th>优先级</th></tr>';
+  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>登录方式</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th><th>优先级</th><th>备注</th></tr>';
   a.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.realm==='global'?'—':(x.last_checkin||'-'))+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td><td><input type="number" data-pri value="'+(x.priority||0)+'" style="width:48px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="savePriority(this)">存</button></td></tr>';
+    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.note||x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(loginMethod(x.nickname))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.realm==='global'?'—':(x.last_checkin||'-'))+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td><td><input type="number" data-pri value="'+(x.priority||0)+'" style="width:48px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="savePriority(this)">存</button></td><td><input type="text" data-note value="'+esc(x.note||'')+'" placeholder="备注名" style="width:110px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="saveNote(this)">存</button></td></tr>';
   });
   h+='</table>';document.getElementById('accountsBody').innerHTML=h;
   populateSelects(a);

@@ -71,6 +71,7 @@ func (s *managementService) accountsHandler() (pluginapi.ManagementResponse, err
 			AuthIndex: file.AuthIndex,
 			Nickname:  file.Label,
 			Priority:  file.Priority,
+			Note:      file.Note,
 			File:      file.Name,
 		}
 		if acct.File == "" {
