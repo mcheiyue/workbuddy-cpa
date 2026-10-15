@@ -112,7 +112,7 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
       <button class="btn" onclick="refreshQuota()">刷新配额</button>
     </div>
   </div>
-  <div id="quotaBody"><div class="empty">选择账号后点击"刷新配额"</div></div>
+  <div id="quotaBody"><div class="empty">选择账号或全部账号后点击"刷新配额"</div></div>
 </div>
 
 <!-- 手动签到 -->
@@ -280,10 +280,10 @@ async function loadStats(){
   const recs=(rs[2]&&rs[2].last_checkins)||[];
   const stk=(rs[3]&&rs[3].streaks)||[];
   const a=ad.accounts||[];
-  const cn=a.filter(x=>x.realm==='cn').length;
+  const cnAcc=a.filter(x=>x.realm==='cn');
   const today=new Date();
   const todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  const signed=a.filter(x=>(x.last_checkin||'').slice(0,10)===todayStr).length;
+  const signed=cnAcc.filter(x=>(x.last_checkin||'').slice(0,10)===todayStr).length;
   const bySource={};
   led.forEach(e=>{const s=e.source||'?';bySource[s]=(bySource[s]||0)+1});
   const srcParts=Object.keys(bySource).sort().map(s=>esc(s)+' '+bySource[s]).join(' / ');
@@ -292,8 +292,8 @@ async function loadStats(){
   const avail=[];
   stOk.forEach(x=>{['7d','14d','28d'].forEach(t=>{if(x['tier_'+t]==='available'&&avail.indexOf(t)<0)avail.push(t)})});
   let h='<table><tr><th>指标</th><th>值</th></tr>';
-  h+='<tr><td>账号总数</td><td><strong>'+a.length+'</strong>（CN '+cn+' / Global '+(a.length-cn)+'）</td></tr>';
-  h+='<tr><td>今日已签到</td><td><strong>'+signed+'</strong> / '+a.length+'</td></tr>';
+  h+='<tr><td>账号总数</td><td><strong>'+a.length+'</strong>（CN '+cnAcc.length+' / Global '+(a.length-cnAcc.length)+'）</td></tr>';
+  h+='<tr><td>今日已签到(CN)</td><td><strong>'+signed+'</strong> / '+cnAcc.length+'</td></tr>';
   h+='<tr><td>Credits 流水</td><td>'+led.length+' 条'+(srcParts?'（'+srcParts+'）':'')+'</td></tr>';
   h+='<tr><td>签到记录</td><td>'+recs.length+' 条</td></tr>';
   h+='<tr><td>连登</td><td><strong>'+maxDays+'</strong> 天（最长，'+stOk.length+'/'+stk.length+' 号可读）'+(avail.length?' · 可领：<strong>'+esc(avail.join('/'))+'</strong> 档':'')+'</td></tr>';

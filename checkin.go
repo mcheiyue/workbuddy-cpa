@@ -109,6 +109,8 @@ func fmtCheckinResult(status string) string {
 		return "今天已签到"
 	case "AUTH_INVALID":
 		return "会话已失效，需重新登录"
+	case "SKIP":
+		return "国际版无签到体系（防风控），已跳过"
 	default:
 		return fmt.Sprintf("签到失败: %s", status)
 	}

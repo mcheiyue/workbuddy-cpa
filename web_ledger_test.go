@@ -56,3 +56,32 @@ func TestWebUILogsTabAutoLoad(t *testing.T) {
 		}
 	}
 }
+
+// TestWebUICheckinStatCNOnly 锁：总览「今日已签到」只统计 CN 账号——
+// last_checkin 字段实为 ledger 观测时间（非签到），global 无签到体系，
+// 口径含 global 会永久显示假不满。
+func TestWebUICheckinStatCNOnly(t *testing.T) {
+	html := string(workbuddyWebUI)
+	i := strings.Index(html, "function loadStats")
+	if i < 0 {
+		t.Fatal("loadStats missing")
+	}
+	end := strings.Index(html[i:], "\nasync function")
+	if end < 0 {
+		end = 2200
+	}
+	chunk := html[i : i+end]
+	for _, want := range []string{"今日已签到(CN)", "realm==='cn'"} {
+		if !strings.Contains(chunk, want) {
+			t.Errorf("loadStats missing %q", want)
+		}
+	}
+}
+
+// TestWebUIQuotaEmptyHint 锁：配额空态文案跟上「全部账号」已可用。
+func TestWebUIQuotaEmptyHint(t *testing.T) {
+	html := string(workbuddyWebUI)
+	if !strings.Contains(html, "选择账号或全部账号") {
+		t.Error("quota empty hint must mention 全部账号 option")
+	}
+}

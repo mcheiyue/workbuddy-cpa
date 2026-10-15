@@ -33,10 +33,18 @@ func newCreditsLedger(cap int) *creditsLedger {
 	return &creditsLedger{entries: make([]ledgerEntry, cap)}
 }
 
-// append adds an entry to the ring buffer.
+// append adds an entry to the ring buffer; Delta auto-computed as
+// balance minus the same auth's previous entry balance (0 for first).
 func (l *creditsLedger) append(e ledgerEntry) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	for i := 0; i < l.size; i++ {
+		idx := (l.head - 1 - i + len(l.entries)) % len(l.entries)
+		if prev := l.entries[idx]; prev.AuthID == e.AuthID {
+			e.Delta = e.Balance - prev.Balance
+			break
+		}
+	}
 	l.entries[l.head] = e
 	l.head = (l.head + 1) % len(l.entries)
 	if l.size < len(l.entries) {

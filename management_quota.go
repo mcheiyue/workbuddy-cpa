@@ -96,12 +96,21 @@ func (s *managementService) checkinHandler(body []byte) (pluginapi.ManagementRes
 			results = append(results, managementCheckinResp{UID: file.AuthIndex, Status: "FAIL", Message: "invalid credential"})
 			continue
 		}
+		realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
+		// D4 同款门控：global 无签到体系，手动入口也不得打 daily-checkin（防风控）。
+		if realm == wbauth.RealmGlobal {
+			results = append(results, managementCheckinResp{
+				UID:     uidTail(cred.UID),
+				Status:  "SKIP",
+				Message: fmtCheckinResult("SKIP"),
+			})
+			continue
+		}
 		client, cerr := s.controlClient()
 		if cerr != nil {
 			results = append(results, managementCheckinResp{UID: file.AuthIndex, Status: "FAIL", Message: "host unavailable"})
 			continue
 		}
-		realm := wbauth.ResolveRealm(cred.Realm, cred.Domain)
 		checkErr := doCheckin(client, realm, cred)
 		status := checkinStatus(checkErr)
 		resp := managementCheckinResp{
