@@ -28,9 +28,13 @@ type Credential struct {
 }
 
 // toStorageJSON 返回嵌套形 JSON（StorageJSON 格式）。
+// Email/Label 是宿主凭证管理页的显示元数据（filestore metadata["email"]/["label"]），
+// 缺失会让页面 email/account/label 列全空（原生 provider 均有值）。
 type storageJSON struct {
-	Type string `json:"type"`
-	Auth struct {
+	Type  string `json:"type"`
+	Email string `json:"email,omitempty"`
+	Label string `json:"label,omitempty"`
+	Auth  struct {
 		AccessToken  string `json:"accessToken"`
 		RefreshToken string `json:"refreshToken"`
 		ExpiresAt    int64  `json:"expiresAt"`
@@ -48,6 +52,11 @@ type storageJSON struct {
 func (c *Credential) marshalStorage() []byte {
 	var s storageJSON
 	s.Type = Provider // 顶层 type：宿主重启扫描按 metadata["type"] 识别 provider，缺它账号被丢（挂起#12）
+	s.Email = c.Nickname
+	if s.Email == "" {
+		s.Email = c.UID // nickname 缺席时也保证凭证管理页 email 列非空
+	}
+	s.Label = s.Email
 	s.Auth.AccessToken = c.AccessToken
 	s.Auth.RefreshToken = c.RefreshToken
 	s.Auth.ExpiresAt = c.ExpiresAt
