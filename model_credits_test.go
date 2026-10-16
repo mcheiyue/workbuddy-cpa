@@ -107,4 +107,11 @@ func TestWebUIModelsCreditsColumn(t *testing.T) {
 			t.Errorf("model directory rendering missing %q", want)
 		}
 	}
+	// 页脚文案须反映 realm+id 去重（同一模型两区域各一行）与实时倍率，
+	// 否则沿用旧「已按调用 ID 去重」会误导（该键已废弃）。
+	for _, want := range []string{"区域+调用 ID", "实时拉上游"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("model directory footer missing updated copy %q", want)
+		}
+	}
 }
