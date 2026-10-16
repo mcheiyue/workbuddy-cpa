@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -98,6 +99,51 @@ func ParseRetryAfter(v string, now time.Time) int {
 	return 0
 }
 
+// softRateResetLoc 上游 429 文案里的重置时刻固定按 UTC+8 解释（上游文案如此，
+// 与容器时区无关；ref workbuddy2api client.go softRateResetLoc）。
+var softRateResetLoc = time.FixedZone("UTC+8", 8*60*60)
+
+// 文案墙钟正则（ref workbuddy2api client.go softRateResetPattern*）：CN「将在 … 重置」
+// 与 EN「reset at <ts>」。预编译为包级 var，错误风暴（429 轰炸）时避免重复编译。
+var (
+	reSoftRateResetCN = regexp.MustCompile(`将在 (.+?) 重置`)
+	reSoftRateResetEN = regexp.MustCompile(`(?i)reset at (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})`)
+)
+
+const softRateTimeLayout = "2006-01-02 15:04:05"
+
+// ParseRateReset 从限流文案提取上游明说的恢复时刻，返回距 now 的秒数；
+// 无文案/坏时间/已过期返回 (0,false)，绝不臆造时间（调用方回退 Retry-After 头）。
+// 文案是比 Retry-After 头更权威的口径（ref workbuddy2api ParseRateReset）。
+func ParseRateReset(body string, now time.Time) (int, bool) {
+	m := reSoftRateResetCN.FindStringSubmatch(body)
+	if len(m) < 2 {
+		m = reSoftRateResetEN.FindStringSubmatch(body)
+	}
+	if len(m) < 2 {
+		return 0, false
+	}
+	ts := strings.TrimSuffix(strings.TrimSpace(m[1]), " UTC+8")
+	t, err := time.ParseInLocation(softRateTimeLayout, ts, softRateResetLoc)
+	if err != nil {
+		return 0, false
+	}
+	secs := int(t.Sub(now).Round(time.Second).Seconds())
+	if secs <= 0 {
+		return 0, false
+	}
+	return secs, true
+}
+
+// retryAfterFor 计算降权开窗用的恢复秒数：优先取 body 文案墙钟（上游更权威），
+// 无文案时回退 Retry-After 头（ref workbuddy2api applyErrorPolicy 优先级）。
+func retryAfterFor(body, header string, now time.Time) int {
+	if secs, ok := ParseRateReset(body, now); ok {
+		return secs
+	}
+	return ParseRetryAfter(header, now)
+}
+
 // Classify 按 HTTP 状态码 + body 判定错误分类。
 // 判定顺序对齐 workbuddy2api Classify（ref: client.go）。
 func Classify(status int, body string) ErrKind {
@@ -117,8 +163,18 @@ func Classify(status int, body string) ErrKind {
 	if strings.Contains(body, "12153") || strings.Contains(body, "Offline user session not found") {
 		return ErrSessionDead
 	}
-	if strings.Contains(lower, "request illegal") || strings.Contains(lower, "trial not activated") {
+	// 11140 账号受限（request illegal / 账号异常行为被限制）与 14017 试用未激活均属
+	// 账号级故障：换号有用、冷却可挡。注意 11140 也承载模型级限流文案
+	// （"The model provider is rate-limiting requests."），故只认受限文案，绝不按裸码判定。
+	if strings.Contains(lower, "request illegal") || strings.Contains(lower, "trial not activated") ||
+		strings.Contains(lower, "restricted due to unusual activity") || strings.Contains(body, "账号存在异常行为") {
 		return ErrAccountFault
+	}
+	// 14018 账号积分耗尽（明确业务码，非 429 专属：403/402 亦见）：
+	// 先于 429 通用兜底，否则被误判为可自愈软限流。只认 code 字段值，不靠文案
+	// （ref workbuddy2api client.go 第 4 层 issue #175；codebuddy-intl-cpa failover.go 要求 status>=400）。
+	if status >= 400 && hasBusinessCode(body, "14018") {
+		return ErrHardCredit
 	}
 	// daily_budget_exceeded 当日积分预算闸（ref workbuddy2api deff7ae），独立于通用 429 兜底。
 	if strings.Contains(body, "daily_budget_exceeded") {

@@ -50,7 +50,7 @@ func execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	if resp.StatusCode >= 400 {
 		kind := Classify(resp.StatusCode, string(raw))
 		return nil, &ExecError{Kind: kind, Status: resp.StatusCode, Msg: sanitizeMsg(truncateBody(raw)),
-			RetryAfterSec: ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())}
+			RetryAfterSec: retryAfterFor(string(raw), resp.Header.Get("Retry-After"), time.Now())}
 	}
 	// 上游可能在 HTTP 200 内嵌业务错误。
 	if bizErr := checkBusinessError(raw); bizErr != nil {
@@ -115,7 +115,7 @@ func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 		raw := drainStream(handle)
 		kind := Classify(handle.StatusCode, string(raw))
 		return &ExecError{Kind: kind, Status: handle.StatusCode, Msg: sanitizeMsg(truncateBody(raw)),
-			RetryAfterSec: ParseRetryAfter(handle.Headers.Get("Retry-After"), time.Now())}
+			RetryAfterSec: retryAfterFor(string(raw), handle.Headers.Get("Retry-After"), time.Now())}
 	}
 	// 首字节判定：'{' = HTTP 200 内嵌 JSON（业务错误体），否则按 SSE 转发。
 	br := bufio.NewReaderSize(&streamReader{handle: handle}, 64*1024)
