@@ -83,6 +83,9 @@ func (s *managementService) benefitsHandler(body []byte) (pluginapi.ManagementRe
 		}
 		row.Realm = wbauth.ResolveRealm(cred.Realm, cred.Domain)
 		row.UIDTail = uidTail(cred.UID)
+		if ck, cerr := queryCheckinActivity(client, row.Realm, cred); cerr == nil {
+			row.Checkin = ck
+		}
 		for _, kind := range benefitKinds {
 			st, qerr := queryBenefit(client, row.Realm, cred, kind)
 			if qerr != nil {

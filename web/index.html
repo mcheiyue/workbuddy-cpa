@@ -132,7 +132,7 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
 
 <!-- 待领权益 -->
 <div class="card" data-view="accounts">
-  <div class="flex-between"><h2>待领权益</h2>
+  <div class="flex-between"><h2>权益与签到</h2>
     <div>
       <select id="benefitAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
         <option value="">全部账号</option>
@@ -428,11 +428,18 @@ async function loadBenefits(){
   if(!d)return;
   const rows=d.benefits||[];
   if(!rows.length){document.getElementById('benefitsBody').innerHTML='<div class="empty">无账号可查询</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>区域</th><th>赠送积分</th><th>补偿积分</th><th>错误</th></tr>';
+  let h='<table><tr><th>UID 尾号</th><th>区域</th><th>签到</th><th>赠送积分</th><th>补偿积分</th><th>错误</th></tr>';
   rows.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail||x.auth_index)+'</td><td>'+esc(x.realm||'-')+'</td><td>'+benefitCell(x.gift)+'</td><td>'+benefitCell(x.compensation)+'</td><td style="color:var(--err)">'+esc(x.error||'-')+'</td></tr>';
+    h+='<tr><td>'+esc(x.uid_tail||x.auth_index)+'</td><td>'+esc(x.realm||'-')+'</td><td>'+checkinCell(x.checkin)+'</td><td>'+benefitCell(x.gift)+'</td><td>'+benefitCell(x.compensation)+'</td><td style="color:var(--err)">'+esc(x.error||'-')+'</td></tr>';
   });
   document.getElementById('benefitsBody').innerHTML=h+'</table>';
+}
+function checkinCell(c){
+  if(!c)return '<span style="color:var(--muted)">—</span>';
+  if(!c.active)return '<span class="status status-error">未开启</span>';
+  const tag=c.today_checked_in?'今日已签':'今日未签';
+  const cls=c.today_checked_in?'status-ok':'status-pending';
+  return '<span class="status '+cls+'">'+tag+'</span> 连签 '+(c.streak_days||0)+' 天'+(c.total_credits?'<br><span style="font-size:11px;color:var(--muted)">累计 '+c.total_credits.toLocaleString()+' 积分</span>':'');
 }
 function benefitCell(b){
   if(!b)return '<span style="color:var(--muted)">—</span>';

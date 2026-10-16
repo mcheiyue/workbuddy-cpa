@@ -61,12 +61,13 @@ type managementStreakResp struct {
 
 // managementBenefitResp 「赠送 / 补偿」权益状态（每账号一行；脱敏无 token）。
 type managementBenefitResp struct {
-	AuthIndex    string         `json:"auth_index"`
-	UIDTail      string         `json:"uid_tail,omitempty"`
-	Realm        string         `json:"realm,omitempty"`
-	Gift         *benefitStatus `json:"gift,omitempty"`
-	Compensation *benefitStatus `json:"compensation,omitempty"`
-	Error        string         `json:"error,omitempty"`
+	AuthIndex    string           `json:"auth_index"`
+	UIDTail      string           `json:"uid_tail,omitempty"`
+	Realm        string           `json:"realm,omitempty"`
+	Gift         *benefitStatus   `json:"gift,omitempty"`
+	Compensation *benefitStatus   `json:"compensation,omitempty"`
+	Checkin      *checkinActivity `json:"checkin,omitempty"`
+	Error        string           `json:"error,omitempty"`
 }
 
 // managementClaimResp 权益领取结果（每账号每种权益一行）。

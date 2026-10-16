@@ -16,6 +16,9 @@ const (
 	benefitGiftClaimPath  = "/billing/meter/claim-gift"
 	benefitCompStatusPath = "/billing/meter/compensation-status"
 	benefitCompClaimPath  = "/billing/meter/claim-compensation"
+	// benefitCheckinStatusPath 是上游权威签到状态（只读）。
+	// 实测 2026-10-16：两 realm 同路径可读，且 /v2 前缀在此端点也通（与上面两条不同）。
+	benefitCheckinStatusPath = "/billing/meter/checkin-activity-status"
 )
 
 // 权益种类。
@@ -55,6 +58,35 @@ type benefitStatus struct {
 // claimable 报告是否可领：active 且未领。
 // 已领再领会被上游拒（409 duplicate）、inactive 领是空写请求——两者都该在上游前拦掉。
 func (b benefitStatus) claimable() bool { return b.Active && !b.Claimed }
+
+// checkinActivity 上游权威签到状态（data 字段）。
+// 与本地 ledger 的区别：ledger 只记「插件何时打过签到」，此结构是上游真实签到口径
+// （today_checked_in 由服务端判定），面板「今日已签到」以本结构为准。
+type checkinActivity struct {
+	Active          bool   `json:"active"`
+	TodayCheckedIn  bool   `json:"today_checked_in"`
+	StreakDays      int    `json:"streak_days"`
+	DailyCredit     int64  `json:"daily_credit"`
+	TotalCredits    int64  `json:"total_credits"`
+	WeekCheckinDays int    `json:"week_checkin_days"`
+	EndTime         string `json:"end_time,omitempty"`
+	ActivityName    string `json:"activity_name,omitempty"`
+}
+
+// queryCheckinActivity 查询单账号上游签到状态（只读端点，空对象 body）。
+func queryCheckinActivity(client *http.Client, realm string, cred wbauth.Credential) (*checkinActivity, error) {
+	data, err := doBillingJSON(client, realm, cred, http.MethodPost, benefitCheckinStatusPath, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	var out checkinActivity
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &out); err != nil {
+			return nil, fmt.Errorf("checkin activity parse: %w", err)
+		}
+	}
+	return &out, nil
+}
 
 // queryBenefit 查询单账号单类权益状态（只读端点，空对象 body）。
 func queryBenefit(client *http.Client, realm string, cred wbauth.Credential, kind string) (*benefitStatus, error) {
