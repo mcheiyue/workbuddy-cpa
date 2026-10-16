@@ -99,17 +99,27 @@ func TestModelsHandler_PerRealmCredits(t *testing.T) {
 	}
 }
 
-// TestWebUIModelsCreditsColumn 模型目录前端契约：倍率列 + 免费高亮 + 区域标签。
+// TestWebUIModelsCreditsColumn 模型目录前端契约：同一模型跨区域合并为一行，
+// 倍率按「全球/国内」两列并列——按区域拆成两行时无法横向对比（用户反馈）。
 func TestWebUIModelsCreditsColumn(t *testing.T) {
 	html := string(workbuddyWebUI)
-	for _, want := range []string{"creditsCell", "免费", "realmTag", "倍率"} {
+	for _, want := range []string{
+		"mergeModels",
+		"<th>调用 ID</th><th>展示名</th><th>全球</th><th>国内</th>",
+		"免费",
+	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("model directory rendering missing %q", want)
 		}
 	}
-	// 页脚文案须反映 realm+id 去重（同一模型两区域各一行）与实时倍率，
-	// 否则沿用旧「已按调用 ID 去重」会误导（该键已废弃）。
-	for _, want := range []string{"区域+调用 ID", "实时拉上游"} {
+	// 旧按区域拆行的实现必须退场：区域标签与「来源账号」列会让同一模型看起来是两个模型。
+	for _, gone := range []string{"realmTag", "来源账号"} {
+		if strings.Contains(html, gone) {
+			t.Errorf("model directory still carries obsolete %q", gone)
+		}
+	}
+	// 页脚文案须说明同模型合并与实时倍率，否则沿用旧「按区域去重」会误导。
+	for _, want := range []string{"同一模型", "实时拉上游"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("model directory footer missing updated copy %q", want)
 		}

@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WorkBuddy 管理面板</title>
 <style>
-:root{color-scheme:light dark;--bg:#f5f7fa;--panel:#fff;--ink:#182230;--muted:#667085;--line:#d9dee8;--accent:#1a73e8;--ok:#137333;--ok-bg:#e6f4ea;--err:#c5221f;--err-bg:#fce8e6;--warn:#b06000;--warn-bg:#fef7e0;--shadow:rgba(0,0,0,.12)}
+:root{color-scheme:light dark;--bg:#f5f7fa;--panel:#fff;--ink:#182230;--muted:#5b6474;--line:#d9dee8;--accent:#1a73e8;--ok:#137333;--ok-bg:#e6f4ea;--err:#c5221f;--err-bg:#fce8e6;--warn:#b06000;--warn-bg:#fef7e0;--shadow:rgba(0,0,0,.12)}
 @media(prefers-color-scheme:dark){:root{--bg:#101318;--panel:#191e27;--ink:#f2f4f7;--muted:#98a2b3;--line:#303846;--ok:#4caf50;--ok-bg:#1b3a24;--err:#f44336;--err-bg:#3d1b1b;--warn:#ffb74d;--warn-bg:#3d2e0a;--shadow:rgba(0,0,0,.35)}}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
 .header{background:var(--accent);color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
 .header h1{font-size:18px;font-weight:600}
-.container{max-width:960px;margin:0 auto;padding:16px}
+.container{max-width:min(1440px,96vw);margin:0 auto;padding:16px}
 .card{background:var(--panel);border-radius:8px;box-shadow:0 1px 3px var(--shadow);padding:16px;margin-bottom:16px}
 .card h2{font-size:15px;font-weight:600;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
 .auth-bar{display:flex;gap:8px;align-items:center;margin-bottom:16px}
 .auth-bar input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)}
-.auth-bar button,.btn{padding:8px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.auth-bar button,.btn{padding:8px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 .auth-bar button:hover,.btn:hover{opacity:.88}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-secondary{background:var(--muted)}.btn-secondary:hover{opacity:.88}
@@ -27,15 +27,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .status-error{background:var(--err-bg);color:var(--err)}
 .status-pending{background:var(--warn-bg);color:var(--warn)}
 .status-auth{background:var(--err-bg);color:var(--err)}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line)}
-th{font-weight:600;background:var(--bg)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-weight:700;background:var(--bg)}
+td{font-weight:500}
+code{font-size:12px;font-weight:500}
 .empty{text-align:center;padding:24px;color:var(--muted)}
 .toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;z-index:999;display:none;box-shadow:0 2px 8px var(--shadow)}
 .toast-ok{background:var(--ok)}.toast-err{background:var(--err)}.toast-info{background:var(--accent)}
 .flex-between{display:flex;justify-content:space-between;align-items:center}
 .tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:2px}
-.tab{padding:8px 16px;border:none;border-radius:6px;background:var(--panel);color:var(--muted);font-size:13px;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px var(--shadow)}
+.tab{padding:8px 16px;border:none;border-radius:6px;background:var(--panel);color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px var(--shadow)}
 .tab.active{background:var(--accent);color:#fff}
 .card[data-view]{display:none}
 body[data-view="overview"] .card[data-view="overview"],
@@ -64,42 +66,42 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
 <div class="card" data-view="overview">
   <div class="flex-between"><h2>统计概览</h2><button class="btn" onclick="loadStats()">刷新</button></div>
   <div id="statsBody"><div class="empty">点击"刷新"加载统计</div></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
 </div>
 
 <!-- 账号列表 -->
 <div class="card" data-view="accounts">
   <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('global')">国际优先</button><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('cn')">国内优先</button><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('clear')">全部清零</button><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
   <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px">优先级：数字越大越优先（宿主选路取最高层，同层内配额加权）；改后即时生效，保活写回不会抹除。</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">优先级：数字越大越优先（宿主选路取最高层，同层内配额加权）；改后即时生效，保活写回不会抹除。</div>
 </div>
 
 <!-- 模型目录 -->
 <div class="card" data-view="tools">
   <div class="flex-between"><h2>模型目录</h2><div style="display:flex;gap:8px;align-items:center"><input id="modelFilter" placeholder="过滤模型…" oninput="filterModels()" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;background:var(--panel);color:var(--ink)"><button class="btn" onclick="loadModels()">刷新</button></div></div>
   <div id="modelsBody"><div class="empty">点击"刷新"加载模型</div></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px">来自上游目录，按「区域+调用 ID」去重（同一模型国内/全球各列一行）；倍率每次刷新实时拉上游</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">来自上游目录，同一模型合并为一行（全球/国内倍率并列），— 表示该区域无此模型；倍率每次刷新实时拉上游</div>
 </div>
 
 <!-- 任务时间线 -->
 <div class="card" data-view="logs">
   <div class="flex-between"><h2>任务时间线</h2><button class="btn" onclick="loadTasks()">刷新</button></div>
   <div id="tasksBody"><div class="empty">点击"刷新"加载任务记录</div></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px">进程内环（200 条，重启即清），本地观测非上游权威</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">进程内环（200 条，重启即清），本地观测非上游权威</div>
 </div>
 
 <!-- 本地签到记录 -->
 <div class="card" data-view="logs">
   <div class="flex-between"><h2>本地签到记录</h2><button class="btn" onclick="loadLastCheckin()">刷新</button></div>
   <div id="checkinRecordBody"><div class="empty">点击"刷新"加载签到记录</div></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
 </div>
 
 <!-- Credits 流水 -->
 <div class="card" data-view="logs">
   <div class="flex-between"><h2>Credits 流水</h2><button class="btn" onclick="loadCreditsLedger()">刷新</button></div>
   <div id="creditsLedgerBody"><div class="empty">点击"刷新"加载流水</div></div>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
 </div>
 
 <!-- 配额刷新 -->
@@ -262,7 +264,7 @@ async function loadAccounts(){
   if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号，点击「登录/添加账号」开始</div>';return}
   let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>登录方式</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th><th>优先级</th><th>备注</th></tr>';
   a.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.note||x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(loginMethod(x.nickname))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.realm==='global'?'—':(x.last_checkin||'-'))+'</td><td><code style="font-size:11px">'+esc(x.auth_index)+'</code></td><td><input type="number" data-pri value="'+(x.priority||0)+'" style="width:48px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="savePriority(this)">存</button></td><td><input type="text" data-note value="'+esc(x.note||'')+'" placeholder="备注名" style="width:110px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="saveNote(this)">存</button></td></tr>';
+    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.note||x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(loginMethod(x.nickname))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.realm==='global'?'—':(x.last_checkin||'-'))+'</td><td><code>'+esc(x.auth_index)+'</code></td><td><input type="number" data-pri value="'+(x.priority||0)+'" style="width:48px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="savePriority(this)">存</button></td><td><input type="text" data-note value="'+esc(x.note||'')+'" placeholder="备注名" style="width:110px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="saveNote(this)">存</button></td></tr>';
   });
   h+='</table>';document.getElementById('accountsBody').innerHTML=h;
   populateSelects(a);
@@ -287,17 +289,25 @@ function creditsCell(c){
   if(!c)return '<span style="color:var(--muted)">—</span>';
   const n=parseFloat(String(c).replace(/^x/i,''));
   const free=(n===0)?'<span style="color:#1a7f37;font-weight:600">免费</span> ':'';
-  return free+'<code style="font-size:11px">'+esc(c)+'</code>';
+  return free+'<code>'+esc(c)+'</code>';
 }
-function realmTag(r){
-  const cn=(r==='cn');
-  return '<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:var(--line);color:var(--ink)">'+(cn?'国内':'全球')+'</span>';
+function mergeModels(rows){
+  const byId=new Map();
+  rows.forEach(x=>{
+    const id=x.id||'';
+    if(!byId.has(id))byId.set(id,{id:id,display_name:x.display_name||'',global:'',cn:''});
+    const e=byId.get(id);
+    if(!e.display_name)e.display_name=x.display_name||'';
+    if(x.realm==='cn')e.cn=x.credits||'';else e.global=x.credits||'';
+  });
+  return Array.from(byId.values()).sort((a,b)=>a.id.localeCompare(b.id));
 }
 function renderModels(m){
-  if(!m.length){document.getElementById('modelsBody').innerHTML='<div class="empty">无匹配模型</div>';return}
-  let h='<table><tr><th>调用 ID</th><th>展示名</th><th>倍率</th><th>区域</th><th>来源账号</th></tr>';
-  m.forEach(x=>{
-    h+='<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(x.display_name)+'</td><td>'+creditsCell(x.credits)+'</td><td>'+realmTag(x.realm)+'</td><td><code style="font-size:11px">'+esc(x.source)+'</code></td></tr>';
+  const rows=mergeModels(m);
+  if(!rows.length){document.getElementById('modelsBody').innerHTML='<div class="empty">无匹配模型</div>';return}
+  let h='<table><tr><th>调用 ID</th><th>展示名</th><th>全球</th><th>国内</th></tr>';
+  rows.forEach(x=>{
+    h+='<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(x.display_name)+'</td><td>'+creditsCell(x.global)+'</td><td>'+creditsCell(x.cn)+'</td></tr>';
   });
   h+='</table>';document.getElementById('modelsBody').innerHTML=h;
 }
@@ -404,7 +414,7 @@ async function loadTasks(){
     const ok=!!x.ok;
     const cls=ok?'status-ok':'status-error';
     const label=ok?(x.err==='already'?'ALREADY':'OK'):'FAIL';
-    h+='<tr><td>'+esc(String(x.ts||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(x.task)+'</td><td><code style="font-size:11px">'+esc(x.auth_id)+'</code></td><td><span class="status '+cls+'">'+label+'</span></td><td>'+esc(x.err||'-')+'</td></tr>';
+    h+='<tr><td>'+esc(String(x.ts||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(x.task)+'</td><td><code>'+esc(x.auth_id)+'</code></td><td><span class="status '+cls+'">'+label+'</span></td><td>'+esc(x.err||'-')+'</td></tr>';
   });
   h+='</table>';document.getElementById('tasksBody').innerHTML=h;
 }
