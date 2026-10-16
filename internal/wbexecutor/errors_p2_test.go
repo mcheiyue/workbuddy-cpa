@@ -42,6 +42,33 @@ func TestClassify_14018Any4xx(t *testing.T) {
 	}
 }
 
+// 锁：业务码判定必须容忍上游 JSON 空白/引号形态差异（`"code":14018` / `"code": 14018` /
+// `"code":"14018"` / `"code": "14018"`）——字面量拼接会漏判带空白形态，导致 14018 退化
+// 为软限流/客户端错误（ref workbuddy2api codeMarker 注释：上游 JSON 含空白时字面量 marker 漏判）。
+func TestClassify_BusinessCodeWhitespaceForms(t *testing.T) {
+	bodies := []string{
+		`{"code":14018}`,
+		`{"code": 14018}`,
+		`{"code":"14018"}`,
+		`{"code": "14018"}`,
+	}
+	for _, b := range bodies {
+		if got := wbexecutor.Classify(http.StatusTooManyRequests, b); got != wbexecutor.ErrHardCredit {
+			t.Errorf("body %s: got %v, want ErrHardCredit", b, got)
+		}
+	}
+	// 6004 同款形态也必须命中（共享 helper，防只修一个码）。
+	for _, b := range []string{`{"code":6004}`, `{"code": 6004}`, `{"code": "6004"}`} {
+		if got := wbexecutor.Classify(http.StatusTooManyRequests, b); got != wbexecutor.ErrModelRateLimit {
+			t.Errorf("body %s: got %v, want ErrModelRateLimit", b, got)
+		}
+	}
+	// 负例：`error_code` 等带下划线的字段名不得误命中（`"code":` 要求引号紧邻 code）。
+	if got := wbexecutor.Classify(http.StatusTooManyRequests, `{"error_code": 14018}`); got == wbexecutor.ErrHardCredit {
+		t.Fatal("error_code field must not match \"code\": marker")
+	}
+}
+
 // 锁：429 + 业务码 14018 = 账号积分耗尽，必须归 ErrHardCredit（不可自愈的计费终态），
 // 不得落 429 通用兜底 ErrSoftRate（软限流会指数退避等自愈，白等且反复选中该号）。
 // ref workbuddy2api client.go Classify 第 4 层（issue #175）。

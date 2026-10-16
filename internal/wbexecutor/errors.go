@@ -238,9 +238,20 @@ func isToolCallMismatch(lower string) bool {
 		strings.Contains(lower, `"code": "11148"`)
 }
 
-// hasBusinessCode 检查 JSON body 中是否包含指定的业务 code 字段值。
+// 业务码匹配器（空白/引号容错）：字面量拼接会漏判上游 `"code": 14018` / `"code":"14018"`
+// 等形态，导致 14018 退化为软限流、6004 退化为通用 429（ref workbuddy2api codeMarker）。
+// 只认 code 字段（要求引号紧邻 code，故 `error_code` 不误命中）。
+var businessCodePatterns = map[string]*regexp.Regexp{
+	"6004":  regexp.MustCompile(`"code"\s*:\s*"?6004"?`),
+	"14018": regexp.MustCompile(`"code"\s*:\s*"?14018"?`),
+}
+
+// hasBusinessCode 检查 JSON body 中 code 字段是否等于指定业务码（容空白/引号形态）。
 func hasBusinessCode(body, want string) bool {
-	return strings.Contains(body, `"code":`+want) || strings.Contains(body, `"code": "`+want+`"`)
+	if re, ok := businessCodePatterns[want]; ok {
+		return re.MatchString(body)
+	}
+	return regexp.MustCompile(`"code"\s*:\s*"?` + regexp.QuoteMeta(want) + `"?`).MatchString(body)
 }
 
 // classifyUpstreamError 将各类错误转为 *ExecError。
