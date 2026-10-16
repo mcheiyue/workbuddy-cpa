@@ -280,14 +280,24 @@ function populateSelects(accounts){
 let cachedModels=[];
 function filterModels(){
   const q=(document.getElementById('modelFilter').value||'').toLowerCase();
-  const m=q?cachedModels.filter(x=>(x.id||'').toLowerCase().includes(q)||(x.display_name||'').toLowerCase().includes(q)):cachedModels;
+  const m=q?cachedModels.filter(x=>(x.id||'').toLowerCase().includes(q)||(x.display_name||'').toLowerCase().includes(q)||(x.realm||'').toLowerCase().includes(q)):cachedModels;
   renderModels(m);
+}
+function creditsCell(c){
+  if(!c)return '<span style="color:var(--muted)">—</span>';
+  const n=parseFloat(String(c).replace(/^x/i,''));
+  const free=(n===0)?'<span style="color:#1a7f37;font-weight:600">免费</span> ':'';
+  return free+'<code style="font-size:11px">'+esc(c)+'</code>';
+}
+function realmTag(r){
+  const cn=(r==='cn');
+  return '<span style="font-size:11px;padding:1px 6px;border-radius:10px;background:var(--line);color:var(--ink)">'+(cn?'国内':'全球')+'</span>';
 }
 function renderModels(m){
   if(!m.length){document.getElementById('modelsBody').innerHTML='<div class="empty">无匹配模型</div>';return}
-  let h='<table><tr><th>调用 ID</th><th>展示名</th><th>来源账号</th></tr>';
+  let h='<table><tr><th>调用 ID</th><th>展示名</th><th>倍率</th><th>区域</th><th>来源账号</th></tr>';
   m.forEach(x=>{
-    h+='<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(x.display_name)+'</td><td><code style="font-size:11px">'+esc(x.source)+'</code></td></tr>';
+    h+='<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(x.display_name)+'</td><td>'+creditsCell(x.credits)+'</td><td>'+realmTag(x.realm)+'</td><td><code style="font-size:11px">'+esc(x.source)+'</code></td></tr>';
   });
   h+='</table>';document.getElementById('modelsBody').innerHTML=h;
 }

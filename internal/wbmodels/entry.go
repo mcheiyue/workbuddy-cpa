@@ -32,6 +32,10 @@ type ModelInfo struct {
 		SupportedEfforts []string `json:"supportedEfforts"`
 		DefaultEffort    string   `json:"defaultEffort"`
 	} `json:"reasoning"`
+
+	// Credits 是上游调用倍率串（形如 "x0.00"/"x0.34 credits"，x0.00=免费）。
+	// 未经归一，展示/比较前先过 NormalizeCredits。
+	Credits string `json:"credits"`
 }
 
 // NonChatModel 判定是否非对话模型（应从模型列表过滤）。
@@ -92,6 +96,14 @@ func parseConfigModels(raw []byte) ([]ModelInfo, error) {
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+// NormalizeCredits 归一上游 credits 倍率串为 "xNN.NN" 形态：
+// 上游格式不统一（裸 "x0.00" / 带后缀 "x0.34 credits" / 空串），
+// 统一剥掉可选的 " credits" 后缀并去空格；空串表示未标注（如 default-model），
+// "x0.00" 表示免费。
+func NormalizeCredits(raw string) string {
+	return strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(raw), "credits"))
 }
 
 // DisplayNameForModel 返回模型的展示名：优先上游 Name（即 display name），

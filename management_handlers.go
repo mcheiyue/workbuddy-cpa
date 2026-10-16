@@ -123,6 +123,8 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 	type modelEntry struct {
 		ID          string `json:"id"`
 		DisplayName string `json:"display_name"`
+		Realm       string `json:"realm"`
+		Credits     string `json:"credits"`
 		Source      string `json:"source"`
 	}
 	models := make([]modelEntry, 0)
@@ -162,13 +164,21 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 		for _, m := range modelsList {
 			// FetchAndRegister 返回的 m.ID 已是公开 ID（FilterAndBuild 生成），不再套 PublicModelID。
 			id := strings.TrimSpace(m.ID)
-			if id == "" || seen[id] {
+			if id == "" {
 				continue
 			}
-			seen[id] = true
+			// 按 realm+id 去重：同一模型在两 realm 倍率/存在性不同（如 deepseek-v4.1-flash
+			// 全球 x0.00 免费、国内 x0.11），只按 id 去重会静默吞掉其中一个 realm 的行。
+			key := realm + "\x00" + id
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
 			models = append(models, modelEntry{
 				ID:          id,
 				DisplayName: wbmodels.DisplayNameForModel(m.ID, m.Name),
+				Realm:       realm,
+				Credits:     wbmodels.NormalizeCredits(m.Credits),
 				Source:      file.AuthIndex,
 			})
 		}
