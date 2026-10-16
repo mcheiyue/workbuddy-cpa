@@ -229,4 +229,9 @@ func TestWebUIHasBenefitsCard(t *testing.T) {
 	if !strings.Contains(html, "['quotaAuthIdx','checkinAuthIdx','benefitAuthIdx']") {
 		t.Fatal("benefitAuthIdx 未接入 populateSelects——下拉会永远只有「全部账号」")
 	}
+	// 首次进入「账号」页自动查一次（benefitLoaded 守卫）：不点查询也能看见待领（补偿窗口会过期），
+	// 但不能每次切标签都打——全账号查询是 2×N 次串行上游请求，守卫只放行首次。
+	if !strings.Contains(html, "v==='accounts'&&savedKey&&!benefitLoaded") {
+		t.Fatal("账号页未接一次性自动查询（benefitLoaded 守卫）——待领权益会藏在卡片里等不到人点")
+	}
 }
