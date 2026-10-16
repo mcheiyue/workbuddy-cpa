@@ -59,6 +59,28 @@ type managementStreakResp struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// managementBenefitResp 「赠送 / 补偿」权益状态（每账号一行；脱敏无 token）。
+type managementBenefitResp struct {
+	AuthIndex    string         `json:"auth_index"`
+	UIDTail      string         `json:"uid_tail,omitempty"`
+	Realm        string         `json:"realm,omitempty"`
+	Gift         *benefitStatus `json:"gift,omitempty"`
+	Compensation *benefitStatus `json:"compensation,omitempty"`
+	Error        string         `json:"error,omitempty"`
+}
+
+// managementClaimResp 权益领取结果（每账号每种权益一行）。
+type managementClaimResp struct {
+	AuthIndex string `json:"auth_index"`
+	UIDTail   string `json:"uid_tail,omitempty"`
+	Realm     string `json:"realm,omitempty"`
+	Kind      string `json:"kind"`
+	Status    string `json:"status"`
+	CreditNum int64  `json:"credit_num,omitempty"`
+	EndTime   string `json:"end_time,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
 // uidTail 返回 UID 尾号（最后 4 位），用于脱敏展示。
 func uidTail(uid string) string {
 	uid = strings.TrimSpace(uid)

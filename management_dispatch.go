@@ -19,6 +19,8 @@ func managementRegister() map[string]any {
 			{"method": http.MethodGet, "path": "/workbuddy/last-checkin"},
 			{"method": http.MethodGet, "path": "/workbuddy/credits-ledger"},
 			{"method": http.MethodPost, "path": "/workbuddy/streak"},
+			{"method": http.MethodPost, "path": "/workbuddy/benefits"},
+			{"method": http.MethodPost, "path": "/workbuddy/benefits/claim"},
 			{"method": http.MethodGet, "path": "/workbuddy/tasks"},
 		},
 		"resources": []map[string]string{
@@ -79,6 +81,18 @@ func managementHandle(raw []byte) ([]byte, error) {
 		return managementResponseEnvelope(resp)
 	case path == "/workbuddy/streak" && request.Method == http.MethodPost:
 		resp, err := defaultManagementService.streakHandler(request.Body)
+		if err != nil {
+			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
+		}
+		return managementResponseEnvelope(resp)
+	case path == "/workbuddy/benefits" && request.Method == http.MethodPost:
+		resp, err := defaultManagementService.benefitsHandler(request.Body)
+		if err != nil {
+			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
+		}
+		return managementResponseEnvelope(resp)
+	case path == "/workbuddy/benefits/claim" && request.Method == http.MethodPost:
+		resp, err := defaultManagementService.claimBenefitsHandler(request.Body)
 		if err != nil {
 			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
 		}

@@ -129,6 +129,21 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
   </div>
   <div id="checkinBody"><div class="empty">选择账号后点击"签到"</div></div>
 </div>
+
+<!-- 待领权益 -->
+<div class="card" data-view="accounts">
+  <div class="flex-between"><h2>待领权益</h2>
+    <div>
+      <select id="benefitAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
+        <option value="">全部账号</option>
+      </select>
+      <button class="btn btn-secondary" onclick="loadBenefits()">查询</button>
+      <button class="btn btn-success" onclick="claimBenefits()">领取可领项</button>
+    </div>
+  </div>
+  <div id="benefitsBody"><div class="empty">选择账号后点击"查询"</div></div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">只对窗口未过期且未领取的权益发起领取，领取后自动复核上游到账状态。"未开启"= 活动窗口未开放或已过期，不是错误</div>
+</div>
 </div>
 <div id="toast" class="toast"></div>
 <script>
@@ -270,7 +285,7 @@ async function loadAccounts(){
   populateSelects(a);
 }
 function populateSelects(accounts){
-  ['quotaAuthIdx','checkinAuthIdx'].forEach(id=>{
+  ['quotaAuthIdx','checkinAuthIdx','benefitAuthIdx'].forEach(id=>{
     const sel=document.getElementById(id);sel.innerHTML='<option value="">全部账号</option>';
     accounts.forEach(a=>{
       const label=(a.uid_tail||'?')+' ('+a.nickname+')';
@@ -403,6 +418,43 @@ async function doCheckin(){
     h+='<tr><td>'+esc(r.uid||'-')+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td><td>'+esc(r.message)+'</td><td>'+(r.remain!=null?r.remain.toLocaleString()+' 积分':'-')+'</td></tr>';
   });
   h+='</table>';document.getElementById('checkinBody').innerHTML=h;
+}
+
+async function loadBenefits(){
+  const idx=document.getElementById('benefitAuthIdx').value;
+  toast('正在查询权益...','info');
+  const d=await api('/benefits',idx?{auth_index:idx}:{});
+  if(!d)return;
+  const rows=d.benefits||[];
+  if(!rows.length){document.getElementById('benefitsBody').innerHTML='<div class="empty">无账号可查询</div>';return}
+  let h='<table><tr><th>UID 尾号</th><th>区域</th><th>赠送积分</th><th>补偿积分</th><th>错误</th></tr>';
+  rows.forEach(x=>{
+    h+='<tr><td>'+esc(x.uid_tail||x.auth_index)+'</td><td>'+esc(x.realm||'-')+'</td><td>'+benefitCell(x.gift)+'</td><td>'+benefitCell(x.compensation)+'</td><td style="color:var(--err)">'+esc(x.error||'-')+'</td></tr>';
+  });
+  document.getElementById('benefitsBody').innerHTML=h+'</table>';
+}
+function benefitCell(b){
+  if(!b)return '<span style="color:var(--muted)">—</span>';
+  const tag=b.claimed?'已领取':(b.active?'可领取':'未开启');
+  const cls=b.claimed?'status-ok':(b.active?'status-pending':'status-error');
+  return '<span class="status '+cls+'">'+tag+'</span>'+(b.credit_num?' '+b.credit_num.toLocaleString()+' 积分':'')+(b.end_time?'<br><span style="font-size:11px;color:var(--muted)">截止 '+esc(b.end_time)+'</span>':'');
+}
+async function claimBenefits(){
+  const idx=document.getElementById('benefitAuthIdx').value;
+  const btn=document.querySelector('button[onclick="claimBenefits()"]');
+  if(btn){if(btn.disabled)return;btn.disabled=true}
+  toast('正在领取可领权益...','info');
+  const d=await api('/benefits/claim',idx?{auth_index:idx}:{});
+  if(btn)btn.disabled=false;
+  if(!d)return;
+  const rs=d.results||[];
+  if(!rs.length){document.getElementById('benefitsBody').innerHTML='<div class="empty">无账号可领取</div>';return}
+  let h='<table><tr><th>UID 尾号</th><th>区域</th><th>权益</th><th>状态</th><th>信息</th></tr>';
+  rs.forEach(r=>{
+    const cls=r.status==='OK'?'status-ok':(r.status==='FAIL'?'status-error':'status-pending');
+    h+='<tr><td>'+esc(r.uid_tail||r.auth_index)+'</td><td>'+esc(r.realm||'-')+'</td><td>'+(r.kind==='compensation'?'补偿':'赠送')+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td><td>'+esc(r.message||'-')+'</td></tr>';
+  });
+  document.getElementById('benefitsBody').innerHTML=h+'</table>';
 }
 
 async function loadTasks(){
