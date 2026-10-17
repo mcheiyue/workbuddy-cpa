@@ -32,6 +32,7 @@ var opsDailyTasks = []opsDailyTask{
 	{name: "checkin", hour: 21, scope: wbauth.RealmCN, run: (*opsTicker).runCheckin},         // ref CheckinHours=[9,21] 两时点无条件都发，21 点是 9 点失败的第二次机会
 	{name: "activity", hour: 10, run: (*opsTicker).runActivity},                              // ref PR #45：CN 与 global 都上报
 	{name: "claim", hour: 11, scope: wbauth.RealmCN, run: (*opsTicker).runClaimCredits},      // ref：global growth 500，CN-only
+	{name: "benefits", hour: 11, run: (*opsTicker).runClaimBenefits},                         // 权益（gift/补偿）有硬到期，见 ops_benefits.go；不可领时零写请求
 	{name: "trial", hour: 12, scope: wbauth.RealmGlobal, run: (*opsTicker).runTrial},         // ref trial.go：global 专属一次性加油包
 	{name: "quota", hour: 23, scope: wbauth.RealmGlobal, run: (*opsTicker).runQuotaSnapshot}, // global 每日余额快照（CN 快照在 checkin 路径，不重复排）
 	{name: "keepalive", hour: 22, run: (*opsTicker).runKeepalive},                            // token 保活 realm 无关

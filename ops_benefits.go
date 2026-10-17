@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbauth"
 )
@@ -114,4 +115,44 @@ func claimBenefit(client *http.Client, realm string, cred wbauth.Credential, kin
 		return err
 	}
 	return nil
+}
+
+// claimAllBenefits 领取全部「可领」权益，返回结果串供任务日志。
+// 只对 claimable() 的项发写请求：global 两侧窗口已关（active=false），
+// 无条件领会退化成每天每号 2 次空写；已领项再领会被上游拒（409）。
+func claimAllBenefits(client *http.Client, realm string, cred wbauth.Credential) (string, error) {
+	claimed := make([]string, 0, len(benefitKinds))
+	for _, kind := range benefitKinds {
+		st, err := queryBenefit(client, realm, cred, kind)
+		if err != nil {
+			return "", err
+		}
+		if !st.claimable() {
+			continue
+		}
+		if err := claimBenefit(client, realm, cred, kind); err != nil {
+			return "", err
+		}
+		claimed = append(claimed, benefitName(kind))
+	}
+	if len(claimed) == 0 {
+		return "none-claimable", nil
+	}
+	return "claimed:" + strings.Join(claimed, ","), nil
+}
+
+// runClaimBenefits 自动领取有窗口的权益（挂 opsDailyTasks hour 11）。
+// 补偿窗口有硬到期（CN 500 于 10-22 23:59），手动领易漏。
+func (t *opsTicker) runClaimBenefits(acct accountInfo) {
+	var claimErr error
+	defer func() {
+		recover()
+		t.finishTask("benefits", acct.authIndex, claimErr)
+	}()
+	client, err := t.httpClient(acct.callbackID)
+	if err != nil {
+		claimErr = err
+		return
+	}
+	_, claimErr = claimAllBenefits(client, acct.realm, acct.cred)
 }

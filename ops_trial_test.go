@@ -19,13 +19,13 @@ func TestBuildWakes_CNScopeExcludesTrialAndGlobalOnly(t *testing.T) {
 	for _, w := range wakes {
 		names[w.task.name] = true
 	}
-	if len(wakes) != 5 {
-		t.Fatalf("CN wakes=%d, want 5 (checkin×2/activity/claim/keepalive)", len(wakes))
+	if len(wakes) != 6 {
+		t.Fatalf("CN wakes=%d, want 6 (checkin×2/activity/claim/benefits/keepalive)", len(wakes))
 	}
 	if names["trial"] {
 		t.Fatal("CN scope must not schedule trial (global-only)")
 	}
-	for _, want := range []string{"checkin", "activity", "claim", "keepalive"} {
+	for _, want := range []string{"checkin", "activity", "claim", "benefits", "keepalive"} {
 		if !names[want] {
 			t.Fatalf("CN scope missing %q", want)
 		}
@@ -39,9 +39,10 @@ func TestBuildWakes_GlobalScopeExcludesCheckinAndClaim(t *testing.T) {
 	for _, w := range wakes {
 		names[w.task.name] = true
 	}
-	if len(wakes) != 4 {
-		// 预期行为变更（2026-10-14 global 每日 quota 快照任务落地）：3→4。
-		t.Fatalf("global wakes=%d, want 4 (activity/trial/quota/keepalive)", len(wakes))
+	if len(wakes) != 5 {
+		// 预期行为变更（2026-10-14 global 每日 quota 快照任务落地 → 3→4；
+		// 2026-10-17 权益自动领取槽 benefits 落地 → 4→5）
+		t.Fatalf("global wakes=%d, want 5 (activity/benefits/trial/quota/keepalive)", len(wakes))
 	}
 	if names["checkin"] {
 		t.Fatal("global scope must not schedule checkin (ref D4 防风控)")
@@ -49,7 +50,7 @@ func TestBuildWakes_GlobalScopeExcludesCheckinAndClaim(t *testing.T) {
 	if names["claim"] {
 		t.Fatal("global scope must not schedule claim (ref global growth 500)")
 	}
-	for _, want := range []string{"activity", "trial", "keepalive"} {
+	for _, want := range []string{"activity", "benefits", "trial", "keepalive"} {
 		if !names[want] {
 			t.Fatalf("global scope missing %q", want)
 		}
