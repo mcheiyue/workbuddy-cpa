@@ -183,7 +183,7 @@ func buildExecuteRequest(req rpcExecutorRequest) (wbexecutor.ExecuteRequest, err
 		PublicModelID:  req.Model,
 		Payload:        req.Payload,
 		StreamID:       req.StreamID,
-		ConversationID: req.Headers.Get("X-Conversation-ID"),
+		ConversationID: deriveConversationID(req.Headers, req.Metadata),
 		ChatBaseURL:    wbauth.RealmBase(realm),
 		Cred: wbexecutor.Credential{
 			AccessToken:  cred.AccessToken,
