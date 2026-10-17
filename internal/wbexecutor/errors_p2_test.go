@@ -117,6 +117,29 @@ func TestParseRateReset_WallClock(t *testing.T) {
 	}
 }
 
+// 锁：6004 必须在 HTTP 500 下也归类为模型级限流。
+// 2026-10-17 现网实证：6004 在 cpamp 中共出现 5 次，**全部是 HTTP 500**
+// （10-16 ×2、10-17 ×3，报文为 "usage exceeds frequency limit ... reset at ..."），
+// 而原判定写作 `status == 429 && ...` → 全部被 `status >= 500 → ErrServer` 提前收走，
+// 5/5 误分类。上游用 500 而非 429 承载该业务码，故判定必须只看 code。
+func TestClassify_6004OnHTTP500(t *testing.T) {
+	body := `{"code":6004,"msg":"usage exceeds frequency limit, but don't worry, your usage will reset at 2026-10-17 10:48:28 UTC+8, alternatively, you can switch to the other models to continue using it.","requestId":"e6129045277d800a875e53d059e4c4ae"}`
+	if got := wbexecutor.Classify(http.StatusInternalServerError, body); got != wbexecutor.ErrModelRateLimit {
+		t.Fatalf("500+6004: Classify=%v, want ErrModelRateLimit", got)
+	}
+	if got := wbexecutor.Classify(http.StatusTooManyRequests, body); got != wbexecutor.ErrModelRateLimit {
+		t.Fatalf("429+6004: Classify=%v, want ErrModelRateLimit", got)
+	}
+	// 负例：500 但无 6004 业务码仍是通用 5xx（不得把普通 5xx 当限流）。
+	if got := wbexecutor.Classify(http.StatusInternalServerError, `{"code":500,"msg":"internal error"}`); got != wbexecutor.ErrServer {
+		t.Fatalf("500 without 6004: Classify=%v, want ErrServer", got)
+	}
+	// 负例：同码出现在其它字段（requestId 内）不得误命中。
+	if got := wbexecutor.Classify(http.StatusInternalServerError, `{"code":500,"msg":"boom","requestId":"x6004x"}`); got != wbexecutor.ErrServer {
+		t.Fatalf("500 with 6004 only in requestId: Classify=%v, want ErrServer", got)
+	}
+}
+
 // 锁：非流 429 同时带 Retry-After 头与 body 文案时，body 墙钟优先（上游更权威）。
 func TestExecute_BodyResetBeatsHeader(t *testing.T) {
 	now := time.Now()

@@ -155,8 +155,9 @@ func Classify(status int, body string) ErrKind {
 		return ErrHardCredit
 	}
 	lower := strings.ToLower(body)
-	// 6004 模型级限流（先于通用 429 判定）。
-	if status == http.StatusTooManyRequests && hasBusinessCode(body, "6004") {
+	// 6004 模型级限流（先于通用 429/5xx 兜底）。上游用 5xx 而非 429 承载该码
+	// （现网 5/5 均为 HTTP 500），故只按 code 判定，不绑状态码。
+	if status >= 400 && hasBusinessCode(body, "6004") {
 		return ErrModelRateLimit
 	}
 	// sessionDead / accountFault 先于通用限流判定。
