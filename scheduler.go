@@ -26,13 +26,19 @@ func handleSchedulerMethod(_ string, raw []byte) ([]byte, error) {
 
 // schedulerPick implements credits-weighted auth selection with session sticky
 // and model-level cooldown exemption. Priority order:
-//  1. Empty/no-workbuddy candidates → delegate round-robin.
-//  2. All candidates in cooldown for requested model → delegate.
+//  1. No candidate belongs to this plugin's provider → delegate (host decides).
+//     Required because the host consults exactly ONE plugin scheduler
+//     process-wide, so this handler can be handed candidates of other providers.
+//  2. No usable candidate, or all in cooldown for the requested model → delegate.
 //  3. Session sticky: if a derivable sticky key maps to a usable candidate → pick it.
 //  4. Credits weighting: higher credits = higher selection probability.
-//  5. Priority fallback: highest-Priority usable candidate.
+//  5. Priority fallback: highest host priority wins.
+//
+// Shadowed on the current host: cpa-key-policy declares Scheduler and wins the
+// host's single scheduler slot (by plugin-id order), so this handler is not
+// reached in production. The provider guard below keeps that dormant, not wrong.
 func schedulerPick(req pluginapi.SchedulerPickRequest) pluginapi.SchedulerPickResponse {
-	candidates := usableCandidates(req.Candidates)
+	candidates := ownCandidates(usableCandidates(req.Candidates))
 	if len(candidates) == 0 {
 		return delegate()
 	}
@@ -73,9 +79,11 @@ func schedulerPick(req pluginapi.SchedulerPickRequest) pluginapi.SchedulerPickRe
 		return pick(chosen)
 	}
 
-	// Step 5: highest priority (lowest numeric value = highest priority).
+	// Step 5: highest host priority wins. The host ranks larger numbers higher
+	// (sdk/cliproxy/auth highestPriorityAuths uses `priority > bestPriority`),
+	// so sort descending — ascending would pick the host's least preferred tier.
 	sort.Slice(nonCooling, func(i, j int) bool {
-		return nonCooling[i].Priority < nonCooling[j].Priority
+		return nonCooling[i].Priority > nonCooling[j].Priority
 	})
 	chosen := nonCooling[0].ID
 	if key, ok := deriveStickyKey(req); ok {
@@ -95,6 +103,19 @@ func usableCandidates(all []pluginapi.SchedulerAuthCandidate) []pluginapi.Schedu
 			continue
 		}
 		out = append(out, c)
+	}
+	return out
+}
+
+// ownCandidates keeps only candidates whose Provider is this plugin's provider id.
+// The host fills Provider for every candidate (lower-cased auth provider), so an
+// empty result means the request belongs to another provider and must be delegated.
+func ownCandidates(all []pluginapi.SchedulerAuthCandidate) []pluginapi.SchedulerAuthCandidate {
+	var out []pluginapi.SchedulerAuthCandidate
+	for _, c := range all {
+		if c.Provider == pluginID {
+			out = append(out, c)
+		}
 	}
 	return out
 }

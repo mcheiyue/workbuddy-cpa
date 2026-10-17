@@ -43,7 +43,7 @@ func TestSchedulerPick_StickyHonored(t *testing.T) {
 		Model:   "gpt-5",
 		Options: pluginapi.SchedulerOptions{Headers: map[string][]string{"X-Conversation-ID": {"abc"}}},
 		Candidates: []pluginapi.SchedulerAuthCandidate{
-			{ID: "auth-1", Priority: 10}, {ID: "auth-2", Priority: 20},
+			{ID: "auth-1", Provider: pluginID, Priority: 10}, {ID: "auth-2", Provider: pluginID, Priority: 20},
 		},
 	}
 	resp := schedulerPick(req)
@@ -64,7 +64,7 @@ func TestSchedulerPick_StickySkippedWithoutKey(t *testing.T) {
 
 	resp := schedulerPick(pluginapi.SchedulerPickRequest{
 		Model:      "gpt-5",
-		Candidates: []pluginapi.SchedulerAuthCandidate{{ID: "auth-1", Priority: 10}},
+		Candidates: []pluginapi.SchedulerAuthCandidate{{ID: "auth-1", Provider: pluginID, Priority: 10}},
 	})
 	if !resp.Handled || resp.AuthID != "auth-1" {
 		t.Fatalf("expected auth-1 handled, got %+v", resp)
@@ -80,7 +80,7 @@ func TestSchedulerPick_CooldownExcludes(t *testing.T) {
 	resp := schedulerPick(pluginapi.SchedulerPickRequest{
 		Model: "gpt-5",
 		Candidates: []pluginapi.SchedulerAuthCandidate{
-			{ID: "auth-1", Priority: 10}, {ID: "auth-2", Priority: 20},
+			{ID: "auth-1", Provider: pluginID, Priority: 10}, {ID: "auth-2", Provider: pluginID, Priority: 20},
 		},
 	})
 	if !resp.Handled || resp.AuthID != "auth-2" {
@@ -98,7 +98,7 @@ func TestSchedulerPick_AllCooldownDelegates(t *testing.T) {
 	resp := schedulerPick(pluginapi.SchedulerPickRequest{
 		Model: "gpt-5",
 		Candidates: []pluginapi.SchedulerAuthCandidate{
-			{ID: "auth-1", Priority: 10}, {ID: "auth-2", Priority: 20},
+			{ID: "auth-1", Provider: pluginID, Priority: 10}, {ID: "auth-2", Provider: pluginID, Priority: 20},
 		},
 	})
 	if resp.Handled {
@@ -119,7 +119,7 @@ func TestSchedulerPick_CreditsWeighted(t *testing.T) {
 	req := pluginapi.SchedulerPickRequest{
 		Model: "gpt-5",
 		Candidates: []pluginapi.SchedulerAuthCandidate{
-			{ID: "auth-1", Priority: 10}, {ID: "auth-2", Priority: 20},
+			{ID: "auth-1", Provider: pluginID, Priority: 10}, {ID: "auth-2", Provider: pluginID, Priority: 20},
 		},
 	}
 	counts := map[string]int{}
@@ -146,7 +146,7 @@ func TestSchedulerPick_Concurrent(t *testing.T) {
 		Model:   "gpt-5",
 		Options: pluginapi.SchedulerOptions{Headers: map[string][]string{"X-Conversation-ID": {"conv-1"}}},
 		Candidates: []pluginapi.SchedulerAuthCandidate{
-			{ID: "auth-1", Priority: 10}, {ID: "auth-2", Priority: 20}, {ID: "auth-3", Priority: 30},
+			{ID: "auth-1", Provider: pluginID, Priority: 10}, {ID: "auth-2", Provider: pluginID, Priority: 20}, {ID: "auth-3", Provider: pluginID, Priority: 30},
 		},
 	}
 	var wg sync.WaitGroup
