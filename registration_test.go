@@ -68,8 +68,6 @@ func TestRegistrationSchema6WorkBuddyCapabilities(t *testing.T) {
 		{"executor", reg.Capabilities.Executor},
 		{"management_api", reg.Capabilities.ManagementAPI},
 		{"quota_provider", reg.Capabilities.QuotaProvider},
-		{"usage_plugin", reg.Capabilities.UsagePlugin},
-		{"request_lifecycle_plugin", reg.Capabilities.RequestLifecyclePlugin},
 	} {
 		if !tc.got {
 			t.Fatalf("%s should be true", tc.name)
@@ -112,7 +110,11 @@ func TestRegistrationDoesNotDeclareUnwantedCapabilities(t *testing.T) {
 	}
 
 	// Then: must not declare model_router, request_interceptor.
-	for _, forbidden := range []string{"model_router", "request_interceptor"} {
+	// Also must not declare usage_plugin / request_lifecycle_plugin: both handlers
+	// only return not_implemented, and the host registers usage plugins globally
+	// (not per-provider), so declaring them makes every usage record from every
+	// provider fire a failing RPC + a debug log line.
+	for _, forbidden := range []string{"model_router", "request_interceptor", "usage_plugin", "request_lifecycle_plugin"} {
 		if _, exists := caps[forbidden]; exists {
 			t.Fatalf("capabilities must not contain %q", forbidden)
 		}

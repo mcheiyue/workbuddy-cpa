@@ -24,8 +24,6 @@ func registration() map[string]any {
 			"executor":                 true,
 			"management_api":           true,
 			"quota_provider":           true,
-			"usage_plugin":             true,
-			"request_lifecycle_plugin": true,
 			"scheduler":                true,
 			"executor_model_scope":     "oauth",
 			"executor_input_formats":   []string{"chat-completions"},
