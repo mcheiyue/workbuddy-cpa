@@ -160,6 +160,14 @@ func Classify(status int, body string) ErrKind {
 	if status >= 400 && hasBusinessCode(body, "6004") {
 		return ErrModelRateLimit
 	}
+	// 14003 模型繁忙（上游 displayMsg「Model busy. Please switch models」）。
+	// 现网 24h 46 次实测：同一模型在多个账号上都撞 14003，是模型级而非账号级；
+	// body 含 "too many requests" 会被下方通用文案兜底成 ErrSoftRate 并误罚账号，
+	// 故必须先判。上游以 HTTP 200 + SSE 业务码承载该错，因此不绑状态码；
+	// 与 6004 一样只认 code 字段，不靠文案。
+	if hasBusinessCode(body, "14003") {
+		return ErrModelRateLimit
+	}
 	// sessionDead / accountFault 先于通用限流判定。
 	if strings.Contains(body, "12153") || strings.Contains(body, "Offline user session not found") {
 		return ErrSessionDead
