@@ -72,6 +72,27 @@ func (c *Credential) marshalStorage() []byte {
 
 // AuthData 转换为 CPA AuthData。fileName 为空时兜底为 ID+".json"，
 // 宿主磁盘扫描只认 .json 后缀（clients.go），否则重启后账号被静默跳过。
+// refreshLead 是 NextRefreshAfter 相对凭证过期时刻的提前量。
+// 宿主 auto_refresh_loop 只在 NextRefreshAfter 到点时才发 refresh，
+// 若等于过期时刻则一次失败即 token 已死；ProviderRefreshLead("workbuddy")
+// 返回 nil（宿主只注册了 codex/claude/antigravity/kimi/xai/devin/meta），
+// 所以提前量只能由插件给出。
+const refreshLead = 5 * time.Minute
+
+// refreshAfterFor 把过期时刻前移 refreshLead，且不早于当前时刻。
+// ExpiresAt 缺省（0）时返回远未来，避免宿主立即无限重刷。
+// 夹到 now 是为了避免已过期凭证算出「过去很久」的刷新点，那会让宿主立刻重刷并反复失败。
+func refreshAfterFor(expiresAt int64) time.Time {
+	if expiresAt <= 0 {
+		return time.Unix(1<<62, 0)
+	}
+	next := time.Unix(expiresAt, 0).Add(-refreshLead)
+	if now := time.Now(); next.Before(now) {
+		return now
+	}
+	return next
+}
+
 func (c *Credential) AuthData(fileName string) pluginapi.AuthData {
 	label := c.Nickname
 	if label == "" {
@@ -83,14 +104,13 @@ func (c *Credential) AuthData(fileName string) pluginapi.AuthData {
 		fileName = id + ".json"
 	}
 	return pluginapi.AuthData{
-		Provider:    Provider,
-		ID:          id,
-		FileName:    fileName,
-		Label:       label,
-		StorageJSON: c.marshalStorage(),
-		Attributes:  map[string]string{"realm": realm},
-		// ponytail: 过期时间直接取 ExpiresAt；若上游缺省则设为远未来避免立即触发刷新
-		NextRefreshAfter: time.Unix(c.ExpiresAt, 0),
+		Provider:         Provider,
+		ID:               id,
+		FileName:         fileName,
+		Label:            label,
+		StorageJSON:      c.marshalStorage(),
+		Attributes:       map[string]string{"realm": realm},
+		NextRefreshAfter: refreshAfterFor(c.ExpiresAt),
 	}
 }
 
