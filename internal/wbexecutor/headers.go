@@ -122,11 +122,19 @@ func workBuddyUA(realm string) string {
 	return "WorkBuddy/" + defaultClientVersion + " " + platform + "/" + defaultClientVersion + " CLI/" + defaultCliVersion
 }
 
-// deriveAccountStableID 按 uid + 用途盐稳定派生 36 hex 设备/会话标识。
-// ref: headers.go:deriveAccountStableID
+// deriveAccountStableID 由 uid 稳定派生一个「带连字符的 UUID 形状」标识
+// （8-4-4-4-12，版本位固定 4、变体位固定 8），供 X-Machine-ID / X-Session-ID 使用。
+//
+// 形态必须对齐官方客户端：它的 machineId 取自 OS 硬件 UUID、sessionId 取自
+// 「每进程一个 randomUUID」，两者都是带连字符的小写 UUID。早先这里输出 36 位
+// 无连字符 hex，与真实客户端形态不符，本身就是一处「网关特征」。
+// 取值必须按账号派生而非按进程：官方是「一个进程 = 一台设备」，网关一个进程要
+// 同时冒充多台设备，照进程维度取一次会让所有账号共用同一个值，反而把它们关联
+// 到同一台机器上，与「每账号一台设备」的隔离口径自相矛盾。
 func deriveAccountStableID(uid, purpose string) string {
 	sum := sha256.Sum256([]byte("wb2a:" + purpose + ":" + uid))
-	return hex.EncodeToString(sum[:18])
+	h := hex.EncodeToString(sum[:16]) // 32 hex
+	return h[0:8] + "-" + h[8:12] + "-4" + h[13:16] + "-8" + h[17:20] + "-" + h[20:32]
 }
 
 // newMessageID 生成 32 位 hex 消息 ID（对齐 ref: session.NewMessageID 语义）。
