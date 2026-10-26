@@ -19,7 +19,11 @@ func Execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	if e := cfg.Degrade.enter(req.AuthID); e != nil {
 		return nil, e
 	}
+	if e := cfg.Egress.enter(req.ChatBaseURL); e != nil {
+		return nil, e
+	}
 	out, err := execute(ctx, cfg, req)
+	cfg.Egress.note(req.ChatBaseURL, err)
 	cfg.Degrade.note(req.AuthID, err)
 	return out, err
 }
@@ -38,6 +42,30 @@ func execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	if err != nil {
 		return nil, &ExecError{Kind: ErrClient, Status: http.StatusBadRequest, Msg: "invalid payload"}
 	}
+	neutralized := cfg.ContentDegrade.Active()
+	if neutralized {
+		body = rewriteSystemNeutral(body)
+	}
+	// 内容/渠道拦截与账号无关（现网实证：同一请求连打 7 个账号全部 11128），换号
+	// 无用；改用中性提示词消掉 system 指纹后重试一次，并开降级窗供后续请求直用。
+	raw, execErr := postWithBody(ctx, cfg, req, body)
+	if execErr != nil && !neutralized && cfg.ContentDegrade != nil && degradeTriggerKind(execErr.Kind) {
+		cfg.ContentDegrade.Trigger()
+		raw, execErr = postWithBody(ctx, cfg, req, rewriteSystemNeutral(body))
+	}
+	if execErr != nil {
+		return nil, execErr
+	}
+	// 替换响应中的 model 为公开 ID（上游返回内部 key，消费方要公开 ID）。
+	result := injectModel(raw, req.PublicModelID)
+	// C4：非流 usage.credit 消耗观测（credit 缺失由提取器忽略）。
+	noteUsageJSON(cfg, req.AuthID, req.PublicModelID, raw)
+	return result, nil
+}
+
+// postWithBody 发一次非流式上游请求：HTTP 4xx/5xx 与 HTTP 200 内嵌业务错误都转成
+// *ExecError，成功时返回原始 200 body。
+func postWithBody(ctx context.Context, cfg Config, req ExecuteRequest, body []byte) ([]byte, *ExecError) {
 	resp, execErr := doUpstream(ctx, cfg, req, body)
 	if execErr != nil {
 		return nil, execErr
@@ -45,7 +73,7 @@ func execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "read body failed"}
+		return nil, &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: "read body failed"}
 	}
 	if resp.StatusCode >= 400 {
 		kind := Classify(resp.StatusCode, string(raw))
@@ -56,11 +84,7 @@ func execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 	if bizErr := checkBusinessError(raw); bizErr != nil {
 		return nil, bizErr
 	}
-	// 替换响应中的 model 为公开 ID（上游返回内部 key，消费方要公开 ID）。
-	result := injectModel(raw, req.PublicModelID)
-	// C4：非流 usage.credit 消耗观测（credit 缺失由提取器忽略）。
-	noteUsageJSON(cfg, req.AuthID, req.PublicModelID, raw)
-	return result, nil
+	return raw, nil
 }
 
 // ExecuteStream 流式执行：经宿主 do_stream 桥直连上游 SSE，逐 chunk 转发裸
@@ -72,12 +96,17 @@ func ExecuteStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 	if e := cfg.Degrade.enter(req.AuthID); e != nil {
 		return e
 	}
+	if e := cfg.Egress.enter(req.ChatBaseURL); e != nil {
+		return e
+	}
 	err := executeStream(ctx, cfg, req)
+	cfg.Egress.note(req.ChatBaseURL, err)
 	cfg.Degrade.note(req.AuthID, err)
 	return err
 }
 
-// executeStream 原流式主体（降权记账由 ExecuteStream 包装层负责）。
+// executeStream 流式主体：准备 body → 中性降级 → 上游尝试 → 命中内容/渠道拦截时
+// 改用中性提示词重试一次（降权记账由 ExecuteStream 包装层负责）。
 func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecError {
 	if cfg.StreamEmit == nil || cfg.StreamClose == nil {
 		return &ExecError{Kind: ErrClient, Status: http.StatusBadRequest, Msg: "stream seams not configured"}
@@ -99,6 +128,21 @@ func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 	if err != nil {
 		return &ExecError{Kind: ErrClient, Status: http.StatusBadRequest, Msg: "invalid payload"}
 	}
+	neutralized := false
+	if cfg.ContentDegrade.Active() {
+		body = rewriteSystemNeutral(body)
+		neutralized = true
+	}
+	execErr := streamWithBody(ctx, cfg, req, body)
+	if execErr != nil && cfg.ContentDegrade != nil && degradeTriggerKind(execErr.Kind) && !neutralized {
+		cfg.ContentDegrade.Trigger()
+		execErr = streamWithBody(ctx, cfg, req, rewriteSystemNeutral(body))
+	}
+	return execErr
+}
+
+// streamWithBody 以给定 body 完成一次上游流式请求（状态码/首字节判定 + pump）。
+func streamWithBody(ctx context.Context, cfg Config, req ExecuteRequest, body []byte) *ExecError {
 	httpReq, reqErr := buildUpstreamRequest(ctx, req, body)
 	if reqErr != nil {
 		return reqErr
@@ -108,7 +152,7 @@ func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 		if errors.Is(doErr, context.Canceled) {
 			return &ExecError{Kind: ErrClient, Status: 499, Msg: "request canceled"}
 		}
-		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: sanitizeMsg(doErr.Error())}
+		return &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: sanitizeMsg(doErr.Error())}
 	}
 	defer handle.Close()
 	if handle.StatusCode >= 400 {
@@ -125,7 +169,7 @@ func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 			cfg.StreamClose(req.StreamID, "empty upstream stream")
 			return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "upstream stream contained no valid data events"}
 		}
-		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "stream read error"}
+		return &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: "stream read error"}
 	}
 	if first == '{' {
 		rest, _ := io.ReadAll(io.LimitReader(br, 1<<20))
@@ -137,7 +181,7 @@ func executeStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 		return pumpStream(cfg, req.AuthID, req.StreamID, br, req.PublicModelID)
 	}
 	if err := br.UnreadByte(); err != nil {
-		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "stream read error"}
+		return &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: "stream read error"}
 	}
 	return pumpStream(cfg, req.AuthID, req.StreamID, br, req.PublicModelID)
 }
@@ -166,9 +210,9 @@ func doUpstream(ctx context.Context, cfg Config, req ExecuteRequest, body []byte
 			return nil, &ExecError{Kind: ErrClient, Status: 499, Msg: "request canceled"}
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, &ExecError{Kind: ErrServer, Status: http.StatusGatewayTimeout, Msg: "upstream timed out"}
+			return nil, &ExecError{Kind: ErrTransport, Status: http.StatusGatewayTimeout, Msg: "upstream timed out"}
 		}
-		return nil, &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: sanitizeMsg(err.Error())}
+		return nil, &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: sanitizeMsg(err.Error())}
 	}
 	return resp, nil
 }

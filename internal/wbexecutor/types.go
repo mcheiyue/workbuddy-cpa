@@ -39,6 +39,10 @@ type Config struct {
 	Efforts  func(authID, publicModelID string) []string
 	// Degrade 账号级连续失败降权门（B2）；nil=不启用。
 	Degrade *DegradeGate
+	// Egress 出口级瞬时失败退避门（B3）；nil=不启用。
+	Egress *EgressGate
+	// ContentDegrade 提示词层内容拦截降级门（B4）；nil=不启用。
+	ContentDegrade *ContentDegradeGate
 	// OnUsage C4 消耗观测回调：上游 usage.credit 存在（含 0）且 tokens>0 时
 	// 触发一次；credit 缺失不触发（ref P0：缺失≠0）。nil=不记。
 	OnUsage func(authID, model string, credit float64, tokens int)

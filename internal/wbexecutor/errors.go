@@ -29,6 +29,7 @@ const (
 	ErrClient                          // 其他 4xx
 	ErrDailyBudget                     // daily_budget_exceeded 当日积分预算耗尽（网关预算闸语义）
 	ErrToolCallMismatch                // 11148 工具调用/结果历史错配（请求级确定性错误，换号无用，不罚号）
+	ErrTransport                       // 无 HTTP 响应的传输层失败（连接/DNS/读写中断），不罚账号
 )
 
 func (k ErrKind) String() string {
@@ -59,6 +60,8 @@ func (k ErrKind) String() string {
 		return "daily_budget_exceeded"
 	case ErrToolCallMismatch:
 		return "tool_call_mismatch"
+	case ErrTransport:
+		return "transport"
 	default:
 		return "none"
 	}
@@ -276,9 +279,12 @@ func classifyUpstreamError(err error) *ExecError {
 		return &ExecError{Kind: ErrClient, Status: 499, Msg: "request canceled"}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return &ExecError{Kind: ErrServer, Status: http.StatusGatewayTimeout, Msg: "upstream timed out"}
+		return &ExecError{Kind: ErrTransport, Status: http.StatusGatewayTimeout, Msg: "upstream timed out"}
 	}
-	return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: sanitizeMsg(err.Error())}
+	// 拿不到 HTTP 响应的失败一律 ErrTransport，而不是 ErrServer：没有状态码就无法
+	// 把责任归给账号，而归 ErrServer 会进账号降权（degrade.go degradeKnownKind），
+	// 一次出口抖动会同时罚掉多个共用出口的账号（ref wb_egress.py issue #271）。
+	return &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: sanitizeMsg(err.Error())}
 }
 
 // sanitizeMsg 脱敏错误消息：截断并去除可能的敏感信息。
