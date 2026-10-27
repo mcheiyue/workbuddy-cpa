@@ -23,6 +23,7 @@ func Execute(ctx context.Context, cfg Config, req ExecuteRequest) ([]byte, *Exec
 		return nil, e
 	}
 	out, err := execute(ctx, cfg, req)
+	noteChannelBlock(req, err)
 	cfg.Egress.note(req.ChatBaseURL, err)
 	cfg.Degrade.note(req.AuthID, err)
 	return out, err
@@ -100,6 +101,7 @@ func ExecuteStream(ctx context.Context, cfg Config, req ExecuteRequest) *ExecErr
 		return e
 	}
 	err := executeStream(ctx, cfg, req)
+	noteChannelBlock(req, err)
 	cfg.Egress.note(req.ChatBaseURL, err)
 	cfg.Degrade.note(req.AuthID, err)
 	return err
