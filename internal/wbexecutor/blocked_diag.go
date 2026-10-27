@@ -2,12 +2,54 @@ package wbexecutor
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
+
+// dumpEnablePath 存在时才转储被拦请求体；dumpDirPath 为转储目录。
+//
+// 用哨兵文件而不是环境变量：容器里 `docker exec cpa touch <path>` 即时开启、
+// `rm` 即时关闭，**不需要重启容器**。转储内容是完整对话正文（含用户数据），
+// 因此只在定位 11128 判据时短时开启，抓到即删——放 /tmp 内，容器重建即消失。
+var (
+	dumpEnablePath = "/tmp/wb-11128-dump.enabled"
+	dumpDirPath    = "/tmp/wb-11128-dump"
+)
+
+// dumpMaxFiles 防止判据异常时把磁盘写满。
+const dumpMaxFiles = 20
+
+func dumpBlockedPayload(req ExecuteRequest) {
+	if len(req.Payload) == 0 {
+		return
+	}
+	if _, err := os.Stat(dumpEnablePath); err != nil {
+		return
+	}
+	if err := os.MkdirAll(dumpDirPath, 0o700); err != nil {
+		return
+	}
+	if entries, err := os.ReadDir(dumpDirPath); err == nil && len(entries) >= dumpMaxFiles {
+		return
+	}
+	sum := sha256.Sum256(req.Payload)
+	name := filepath.Join(dumpDirPath, hex.EncodeToString(sum[:8])+".json")
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	if _, err := f.Write(req.Payload); err != nil {
+		return
+	}
+	log.Printf("WARN: [workbuddy] dumped blocked payload %s (%d bytes)", name, len(req.Payload))
+}
 
 // noteChannelBlock 在 11128（Illegal API invocation from an unapproved channel）时
 // 记录请求的脱敏摘要。
@@ -22,6 +64,7 @@ func noteChannelBlock(req ExecuteRequest, err *ExecError) {
 	if err == nil || !strings.Contains(err.Msg, "11128") {
 		return
 	}
+	dumpBlockedPayload(req)
 	log.Printf("WARN: [workbuddy] channel-blocked 11128 model=%s %s", req.PublicModelID, summarizeRequest(req))
 }
 

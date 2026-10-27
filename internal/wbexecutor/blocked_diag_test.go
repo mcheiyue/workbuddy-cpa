@@ -3,6 +3,8 @@ package wbexecutor
 import (
 	"bytes"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -54,5 +56,44 @@ func TestNoteChannelBlockOnlyFor11128(t *testing.T) {
 	noteChannelBlock(req, &ExecError{Kind: ErrBadParams, Msg: `{"code":11128,"msg":"Illegal API invocation from an unapproved channel"}`})
 	if !strings.Contains(buf.String(), "channel-blocked") || !strings.Contains(buf.String(), "11128") {
 		t.Fatalf("11128 must be logged, got: %s", buf.String())
+	}
+}
+
+// 锁：转储必须受哨兵文件控制（默认不落盘），且同一 payload 只落一份——
+// 一次事故会对 8 个账号各触发一次，不去重就是 8 份同样的 658KB。
+func TestDumpBlockedPayloadGatedAndIdempotent(t *testing.T) {
+	root := t.TempDir()
+	oldEnable, oldDir := dumpEnablePath, dumpDirPath
+	defer func() { dumpEnablePath, dumpDirPath = oldEnable, oldDir }()
+	dumpEnablePath = filepath.Join(root, "enable")
+	dumpDirPath = filepath.Join(root, "dump")
+
+	req := ExecuteRequest{Payload: []byte(`{"messages":[{"role":"user","content":"hi"}]}`)}
+
+	dumpBlockedPayload(req)
+	if _, err := os.Stat(dumpDirPath); !os.IsNotExist(err) {
+		t.Fatalf("dump must stay off without sentinel")
+	}
+
+	if err := os.WriteFile(dumpEnablePath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dumpBlockedPayload(req)
+	entries, err := os.ReadDir(dumpDirPath)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("want exactly 1 dump, got %d (err=%v)", len(entries), err)
+	}
+	got, err := os.ReadFile(filepath.Join(dumpDirPath, entries[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(req.Payload) {
+		t.Fatalf("content mismatch: %q", got)
+	}
+
+	dumpBlockedPayload(req)
+	entries, _ = os.ReadDir(dumpDirPath)
+	if len(entries) != 1 {
+		t.Fatalf("duplicate dump for same payload: %d files", len(entries))
 	}
 }
