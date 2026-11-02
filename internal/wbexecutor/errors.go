@@ -73,7 +73,6 @@ type ExecError struct {
 	Status        int
 	Msg           string // 脱敏摘要，不含 token/Authorization
 	RetryAfterSec int    // 上游 Retry-After 真实秒数（0=无/坏值），供降权开窗取值
-	Restricted    bool   // 上游自述「账号异常行为被限制」：账号级、可恢复，立即长冷却
 }
 
 func (e *ExecError) Error() string {
@@ -148,14 +147,6 @@ func retryAfterFor(body, header string, now time.Time) int {
 	return ParseRetryAfter(header, now)
 }
 
-// isAccountRestricted 只认「账号异常行为被限制」文案。11140 同时承载模型级限流
-// 与普通 request illegal，两者都不算受限，避免好号被立刻锁 45 分钟。
-func isAccountRestricted(body string) bool {
-	lower := strings.ToLower(body)
-	return strings.Contains(lower, "restricted due to unusual activity") ||
-		strings.Contains(body, "账号存在异常行为")
-}
-
 // Classify 按 HTTP 状态码 + body 判定错误分类。
 // 判定顺序对齐 workbuddy2api Classify（ref: client.go）。
 func Classify(status int, body string) ErrKind {
@@ -187,7 +178,8 @@ func Classify(status int, body string) ErrKind {
 	// 11140 账号受限（request illegal / 账号异常行为被限制）与 14017 试用未激活均属
 	// 账号级故障：换号有用、冷却可挡。注意 11140 也承载模型级限流文案
 	// （"The model provider is rate-limiting requests."），故只认受限文案，绝不按裸码判定。
-	if isAccountRestricted(body) || strings.Contains(lower, "request illegal") || strings.Contains(lower, "trial not activated") {
+	if strings.Contains(lower, "request illegal") || strings.Contains(lower, "trial not activated") ||
+		strings.Contains(lower, "restricted due to unusual activity") || strings.Contains(body, "账号存在异常行为") {
 		return ErrAccountFault
 	}
 	// 14018 账号积分耗尽（明确业务码，非 429 专属：403/402 亦见）：

@@ -12,9 +12,6 @@ import (
 const (
 	degradeThreshold = 5                // ref defaultDegradeThreshold
 	degradeCooldown  = 10 * time.Minute // ref defaultDegradeCooldown
-	// 上游对「账号异常行为被限制」给出 45 分钟软冷却（ref workbuddy-manager #362）：
-	// 可恢复、不永久禁用，命中一次即开窗，避免继续打上游。
-	restrictedCooldown = 45 * time.Minute
 )
 
 type degradeState struct {
@@ -73,11 +70,6 @@ func (g *DegradeGate) note(authID string, err *ExecError) {
 	}
 	if err == nil {
 		s.fails, s.until = 0, time.Time{}
-		return
-	}
-	if err.Restricted {
-		s.fails = 0
-		s.until = g.clock().Add(restrictedCooldown)
 		return
 	}
 	if !degradeKnownKind(err.Kind) {
