@@ -79,7 +79,8 @@ func postWithBody(ctx context.Context, cfg Config, req ExecuteRequest, body []by
 	if resp.StatusCode >= 400 {
 		kind := Classify(resp.StatusCode, string(raw))
 		return nil, &ExecError{Kind: kind, Status: resp.StatusCode, Msg: sanitizeMsg(truncateBody(raw)),
-			RetryAfterSec: retryAfterFor(string(raw), resp.Header.Get("Retry-After"), time.Now())}
+			RetryAfterSec: retryAfterFor(string(raw), resp.Header.Get("Retry-After"), time.Now()),
+			Restricted:    isAccountRestricted(string(raw))}
 	}
 	// 上游可能在 HTTP 200 内嵌业务错误。
 	if bizErr := checkBusinessError(raw); bizErr != nil {
@@ -161,7 +162,8 @@ func streamWithBody(ctx context.Context, cfg Config, req ExecuteRequest, body []
 		raw := drainStream(handle)
 		kind := Classify(handle.StatusCode, string(raw))
 		return &ExecError{Kind: kind, Status: handle.StatusCode, Msg: sanitizeMsg(truncateBody(raw)),
-			RetryAfterSec: retryAfterFor(string(raw), handle.Headers.Get("Retry-After"), time.Now())}
+			RetryAfterSec: retryAfterFor(string(raw), handle.Headers.Get("Retry-After"), time.Now()),
+			Restricted:    isAccountRestricted(string(raw))}
 	}
 	// 首字节判定：'{' = HTTP 200 内嵌 JSON（业务错误体），否则按 SSE 转发。
 	br := bufio.NewReaderSize(&streamReader{handle: handle}, 64*1024)
@@ -250,7 +252,8 @@ func checkBusinessError(raw []byte) *ExecError {
 		kind = ErrClient
 	}
 	return &ExecError{Kind: kind, Status: http.StatusOK,
-		Msg: fmt.Sprintf("code=%d msg=%s", env.Code, truncateBody([]byte(env.Msg)))}
+		Msg:        fmt.Sprintf("code=%d msg=%s", env.Code, truncateBody([]byte(env.Msg))),
+		Restricted: isAccountRestricted(string(raw))}
 }
 
 // truncateBody 截断 body 用于错误消息（保留 code/type/message，不含 token）。
