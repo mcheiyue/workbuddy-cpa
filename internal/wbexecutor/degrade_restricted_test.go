@@ -25,15 +25,22 @@ func TestIsAccountRestricted(t *testing.T) {
 	}
 }
 
-// 锁：受限是账号级且上游自述可恢复，命中一次就开 45 分钟窗，不等 5 连败。
-func TestDegradeGate_RestrictedOpensWindowImmediately(t *testing.T) {
+// 锁：受限是账号级（现网同一账号在无关会话、不同模型上同样失败），但要连续 2 次
+// 才开窗——单次命中可能是内容级 11140，一个请求不该锁死全池。
+func TestDegradeGate_RestrictedNeedsTwoHits(t *testing.T) {
 	g := NewDegradeGate()
 	now := time.Unix(1790000000, 0)
 	g.Now = func() time.Time { return now }
+	hit := &ExecError{Kind: ErrAccountFault, Status: http.StatusInternalServerError, Restricted: true}
 
-	g.note("auth-a", &ExecError{Kind: ErrAccountFault, Status: http.StatusInternalServerError, Restricted: true})
+	g.note("auth-a", hit)
+	if e := g.enter("auth-a"); e != nil {
+		t.Fatal("single restricted hit must not gate yet")
+	}
+
+	g.note("auth-a", hit)
 	if e := g.enter("auth-a"); e == nil {
-		t.Fatal("restricted account must be gated after a single failure")
+		t.Fatal("second restricted hit must open the window")
 	}
 
 	g.Now = func() time.Time { return now.Add(44 * time.Minute) }
