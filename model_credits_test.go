@@ -76,9 +76,10 @@ func TestModelsHandler_PerRealmCredits(t *testing.T) {
 	}
 	var payload struct {
 		Models []struct {
-			ID      string `json:"id"`
-			Realm   string `json:"realm"`
-			Credits string `json:"credits"`
+			ID         string `json:"id"`
+			InternalID string `json:"internal_id"`
+			Realm      string `json:"realm"`
+			Credits    string `json:"credits"`
 		} `json:"models"`
 	}
 	if err := json.Unmarshal(resp.Body, &payload); err != nil {
@@ -96,6 +97,14 @@ func TestModelsHandler_PerRealmCredits(t *testing.T) {
 	}
 	if got["global"] != "x0.00" {
 		t.Errorf("global credits=%q want x0.00", got["global"])
+	}
+	// 前端按 internal_id 合并同一模型（两 realm 的公开 ID 大小写不同：
+	// CN DeepSeek-V4.1-Flash / Global Deepseek-V4.1-Flash），缺这个字段就只能靠 id 合并、
+	// 同一模型会被拆成两行且各缺一列倍率。
+	for _, m := range payload.Models {
+		if m.InternalID != "deepseek-v4.1-flash" {
+			t.Errorf("%s internal_id=%q want deepseek-v4.1-flash", m.Realm, m.InternalID)
+		}
 	}
 }
 

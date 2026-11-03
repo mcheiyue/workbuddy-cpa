@@ -122,6 +122,7 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 	seenAuth := make(map[string]bool)
 	type modelEntry struct {
 		ID          string `json:"id"`
+		InternalID  string `json:"internal_id"`
 		DisplayName string `json:"display_name"`
 		Realm       string `json:"realm"`
 		Credits     string `json:"credits"`
@@ -176,6 +177,7 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 			seen[key] = true
 			models = append(models, modelEntry{
 				ID:          id,
+				InternalID:  defaultRegistry.Resolve(file.AuthIndex, id),
 				DisplayName: wbmodels.DisplayNameForModel(m.ID, m.Name),
 				Realm:       realm,
 				Credits:     wbmodels.NormalizeCredits(m.Credits),

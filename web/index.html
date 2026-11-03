@@ -325,9 +325,9 @@ function creditsCell(c){
 function mergeModels(rows){
   const byId=new Map();
   rows.forEach(x=>{
-    const id=x.id||'';
-    if(!byId.has(id))byId.set(id,{id:id,display_name:x.display_name||'',global:'',cn:''});
-    const e=byId.get(id);
+    const key=x.internal_id||x.id||'';
+    if(!byId.has(key))byId.set(key,{id:x.id||'',display_name:x.display_name||'',global:'',cn:''});
+    const e=byId.get(key);
     if(!e.display_name)e.display_name=x.display_name||'';
     if(x.realm==='cn')e.cn=x.credits||'';else e.global=x.credits||'';
   });
