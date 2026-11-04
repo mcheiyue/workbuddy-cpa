@@ -14,7 +14,10 @@ type executorFailure struct {
 	code    string
 	message string
 	status  int
-	cause   error
+	// retryAfter 上游 Retry-After / 限流恢复提示的秒数（0=无）；经
+	// errorEnvelopeRetry 传给宿主 RetryAfterSeconds，宿主映射为 Retry-After 头。
+	retryAfter int
+	cause      error
 }
 
 func (e *executorFailure) Error() string { return e.message }
@@ -29,10 +32,11 @@ func classifyExecutorError(err error) *executorFailure {
 	var execErr *wbexecutor.ExecError
 	if errors.As(err, &execErr) {
 		return &executorFailure{
-			code:    execErr.Kind.String(),
-			message: execErr.Msg,
-			status:  execErr.Status,
-			cause:   err,
+			code:       execErr.Kind.String(),
+			message:    execErr.Msg,
+			status:     execErr.Status,
+			retryAfter: execErr.RetryAfterSec,
+			cause:      err,
 		}
 	}
 	if errors.Is(err, context.Canceled) {

@@ -62,7 +62,7 @@ func handleExecutorMethod(method string, raw []byte) ([]byte, error) {
 				globalSchedulerState.setCooldown(aid, request.Model)
 			}
 		}
-		return errorEnvelopeStatus(failure.code, failure.message, failure.status), nil
+		return errorEnvelopeRetry(failure.code, failure.message, failure.status, failure.retryAfter), nil
 	}
 	return okEnvelope(result)
 }

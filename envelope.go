@@ -22,9 +22,16 @@ func errorEnvelope(code, message string) []byte {
 
 // errorEnvelopeStatus 返回带 HTTP 状态码的失败 Envelope。
 func errorEnvelopeStatus(code, message string, status int) []byte {
+	return errorEnvelopeRetry(code, message, status, 0)
+}
+
+// errorEnvelopeRetry 返回带 HTTP 状态码与上游重试提示（秒）的失败 Envelope；
+// retryAfter<=0 时省略 retry_after_seconds 字段。宿主把它映射为 Retry-After
+// 响应头并作为冷却提示（rpc_client.go RetryAfter）。
+func errorEnvelopeRetry(code, message string, status, retryAfter int) []byte {
 	raw, err := json.Marshal(pluginabi.Envelope{
 		OK:    false,
-		Error: &pluginabi.Error{Code: code, Message: message, HTTPStatus: status},
+		Error: &pluginabi.Error{Code: code, Message: message, HTTPStatus: status, RetryAfterSeconds: retryAfter},
 	})
 	if err != nil {
 		return []byte(`{"ok":false,"error":{"code":"marshal_error","message":"failed to encode error envelope"}}`)
