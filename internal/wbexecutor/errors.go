@@ -73,7 +73,7 @@ type ExecError struct {
 	Status        int
 	Msg           string // 脱敏摘要，不含 token/Authorization
 	RetryAfterSec int    // 上游 Retry-After 真实秒数（0=无/坏值），供降权开窗取值
-	Restricted    bool   // 上游自述「账号异常行为被限制」：账号级、可恢复，立即长冷却
+	Restricted    bool   // 上游明确 11140 账号受限，交宿主持久停用
 }
 
 func (e *ExecError) Error() string {
@@ -149,11 +149,11 @@ func retryAfterFor(body, header string, now time.Time) int {
 }
 
 // isAccountRestricted 只认「账号异常行为被限制」文案。11140 同时承载模型级限流
-// 与普通 request illegal，两者都不算受限，避免好号被立刻锁 45 分钟。
+// 与普通 request illegal，两者都不算受限，避免误停健康账号。
 func isAccountRestricted(body string) bool {
 	lower := strings.ToLower(body)
-	return strings.Contains(lower, "restricted due to unusual activity") ||
-		strings.Contains(body, "账号存在异常行为")
+	return hasBusinessCode(body, "11140") && (strings.Contains(lower, "restricted due to unusual activity") ||
+		strings.Contains(body, "账号存在异常行为"))
 }
 
 // Classify 按 HTTP 状态码 + body 判定错误分类。

@@ -12,13 +12,6 @@ import (
 const (
 	degradeThreshold = 5                // ref defaultDegradeThreshold
 	degradeCooldown  = 10 * time.Minute // ref defaultDegradeCooldown
-	// 上游对「账号异常行为被限制」给出 45 分钟软冷却（ref workbuddy-manager #362）：
-	// 可恢复、不永久禁用，命中一次即开窗，避免继续打上游。
-	restrictedCooldown = 45 * time.Minute
-	// restrictedThreshold：连续 2 次才开窗。现网取证该限制是账号级（同一账号在
-	// 无关会话、不同模型上同样失败），2 次足以确认；万一日后出现内容级 11140，
-	// 也不会因一个请求把全池锁 45 分钟。
-	restrictedThreshold = 2
 )
 
 type degradeState struct {
@@ -65,7 +58,7 @@ func (g *DegradeGate) enter(authID string) *ExecError {
 
 // note 记录一次结果：成功清零；已知原因连败计数，达阈值开冷却窗（窗内不叠加）。
 func (g *DegradeGate) note(authID string, err *ExecError) {
-	if g == nil || authID == "" {
+	if g == nil || authID == "" || (err != nil && err.Restricted) {
 		return
 	}
 	g.mu.Lock()
@@ -77,14 +70,6 @@ func (g *DegradeGate) note(authID string, err *ExecError) {
 	}
 	if err == nil {
 		s.fails, s.until = 0, time.Time{}
-		return
-	}
-	if err.Restricted {
-		s.fails++
-		if s.fails >= restrictedThreshold {
-			s.fails = 0
-			s.until = g.clock().Add(restrictedCooldown)
-		}
 		return
 	}
 	if !degradeKnownKind(err.Kind) {

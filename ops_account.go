@@ -188,8 +188,14 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 	// E6① singleflight：同账号并发保活合并为一次上游刷新，后到者复用结果，
 	// 避免多路各自轮换同一 refresh_token。
 	_, kaErr = authRefreshMutex.Do(acct.authID, func() (wbauth.RefreshResult, error) {
+		authFileWriteMu.Lock()
+		defer authFileWriteMu.Unlock()
 		// 执行方重读：并发保活必须见到最新 refresh_token，防止复用已轮换的 RT（ref refresh_race 同款约束）。
-		cred, err := t.freshCred(acct)
+		oldRaw, err := t.authPhysicalJSON(acct.authIndex)
+		if err != nil {
+			return wbauth.RefreshResult{}, err
+		}
+		cred, err := wbauth.Parse(oldRaw)
 		if err != nil {
 			return wbauth.RefreshResult{}, err
 		}
@@ -213,13 +219,10 @@ func (t *opsTicker) runKeepalive(acct accountInfo) {
 		deadSessions.clear(acct.authIndex) // 刷新成功清误判计数（ref scheduler keepalive 语义）
 		data := refreshed.Credential.AuthData(acct.fileName)
 		// 写回保留宿主侧外来顶层键（priority/disabled 等）：宿主 saveAuthFile 裸写，
-		// storageJSON 只含自有键，不合并会抹掉 Phase B 实证的 priority；取键/合并
-		// 失败回退裸写（=原行为），不因元数据失败阻断刷新写回。
-		payloadJSON := data.StorageJSON
-		if oldRaw, getErr := t.authPhysicalJSON(acct.authIndex); getErr == nil {
-			if merged, mergeErr := mergeForeignAuthMetadata(oldRaw, payloadJSON); mergeErr == nil {
-				payloadJSON = merged
-			}
+		// 在轮换 token 前取快照并锁住写回，防止受限停用与保活互相覆盖。
+		payloadJSON, err := mergeForeignAuthMetadata(oldRaw, data.StorageJSON)
+		if err != nil {
+			return refreshed, err
 		}
 		var saveErr error
 		for range 3 {

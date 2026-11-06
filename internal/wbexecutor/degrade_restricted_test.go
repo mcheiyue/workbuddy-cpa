@@ -9,7 +9,7 @@ import (
 const restrictedEN = `{"code":11140,"msg":"request illegal","displayMsg":{"en":"Your account has been restricted due to unusual activity","zh":"账号存在异常行为，已被限制使用"}}`
 
 // 锁：只有「账号受限」文案算受限。普通 request illegal 与 11140 模型限流文案
-// 都不能触发立即长冷却，否则好号会被误锁 45 分钟。
+// 都不能触发持久停用，否则健康账号会被误停。
 func TestIsAccountRestricted(t *testing.T) {
 	if !isAccountRestricted(restrictedEN) {
 		t.Fatal("restricted EN wording must be detected")
@@ -23,33 +23,23 @@ func TestIsAccountRestricted(t *testing.T) {
 	if isAccountRestricted(`{"code":11140,"msg":"The model provider is rate-limiting requests."}`) {
 		t.Fatal("model rate-limit wording must not be restricted")
 	}
+	if isAccountRestricted(`{"code":0,"msg":"restricted due to unusual activity"}`) {
+		t.Fatal("wording without restriction code must not disable an account")
+	}
 }
 
-// 锁：受限是账号级（现网同一账号在无关会话、不同模型上同样失败），但要连续 2 次
-// 才开窗——单次命中可能是内容级 11140，一个请求不该锁死全池。
-func TestDegradeGate_RestrictedNeedsTwoHits(t *testing.T) {
+// 明确受限交由宿主持久停用；人工启用后不能仍被进程内旧冷却拦截。
+func TestDegradeGate_RestrictedDoesNotLeaveTemporaryWindow(t *testing.T) {
 	g := NewDegradeGate()
 	now := time.Unix(1790000000, 0)
 	g.Now = func() time.Time { return now }
 	hit := &ExecError{Kind: ErrAccountFault, Status: http.StatusInternalServerError, Restricted: true}
 
-	g.note("auth-a", hit)
+	for range 6 {
+		g.note("auth-a", hit)
+	}
 	if e := g.enter("auth-a"); e != nil {
-		t.Fatal("single restricted hit must not gate yet")
-	}
-
-	g.note("auth-a", hit)
-	if e := g.enter("auth-a"); e == nil {
-		t.Fatal("second restricted hit must open the window")
-	}
-
-	g.Now = func() time.Time { return now.Add(44 * time.Minute) }
-	if e := g.enter("auth-a"); e == nil {
-		t.Fatal("window must still be open before 45m")
-	}
-	g.Now = func() time.Time { return now.Add(46 * time.Minute) }
-	if e := g.enter("auth-a"); e != nil {
-		t.Fatal("window must close after 45m")
+		t.Fatal("persistent restriction must not create temporary cooldown")
 	}
 }
 

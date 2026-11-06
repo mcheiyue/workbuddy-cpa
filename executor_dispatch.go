@@ -78,7 +78,7 @@ func executorExecute(ctx context.Context, req rpcExecutorRequest) (pluginapi.Exe
 	}
 	raw, execErr := wbexecutor.Execute(ctx, cfg, execReq)
 	if execErr != nil {
-		return pluginapi.ExecutorResponse{}, execErr
+		return pluginapi.ExecutorResponse{}, recordExecutorFailure(req, execErr)
 	}
 	// Execute 强制 stream:true，上游返回 SSE 流；聚合为单个 chat.completion JSON。
 	aggregated, aggErr := wbexecutor.Aggregate(bytes.NewReader(raw))
@@ -123,7 +123,7 @@ func executorExecuteStream(ctx context.Context, req rpcExecutorRequest) (plugina
 	}
 	go func() {
 		if execErr := wbexecutor.ExecuteStream(ctx, cfg, execReq); execErr != nil {
-			hostStreamClose(req.StreamID, execErr.Msg)
+			hostStreamClose(req.StreamID, recordExecutorFailure(req, execErr).Error())
 		}
 	}()
 	return pluginapi.ExecutorStreamResponse{
