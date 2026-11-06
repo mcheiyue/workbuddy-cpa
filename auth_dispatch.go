@@ -66,9 +66,21 @@ func handleAuthParse(raw []byte) (pluginapi.AuthParseResponse, error) {
 	if err != nil {
 		return pluginapi.AuthParseResponse{}, err
 	}
+	var state struct {
+		Disabled bool   `json:"disabled"`
+		Note     string `json:"note"`
+	}
+	if err := json.Unmarshal(req.RawJSON, &state); err != nil {
+		return pluginapi.AuthParseResponse{}, err
+	}
+	data := cred.AuthData(req.FileName)
+	data.StorageJSON = req.RawJSON
+	data.Disabled = state.Disabled
+	data.Metadata = map[string]any{"disabled": state.Disabled, "note": state.Note}
+	data.Attributes["note"] = state.Note
 	return pluginapi.AuthParseResponse{
 		Handled: true,
-		Auth:    cred.AuthData(req.FileName),
+		Auth:    data,
 	}, nil
 }
 
@@ -153,8 +165,13 @@ func handleAuthRefresh(ctx context.Context, raw []byte) (pluginapi.AuthRefreshRe
 	}
 	// Start ops ticker now that an account exists (refresh confirms validity).
 	EnsureOpsStarted()
+	data := refreshed.Credential.AuthData("")
+	data.StorageJSON, err = mergeForeignAuthMetadata(req.StorageJSON, data.StorageJSON)
+	if err != nil {
+		return pluginapi.AuthRefreshResponse{}, err
+	}
 	return pluginapi.AuthRefreshResponse{
-		Auth:             refreshed.Credential.AuthData(""),
+		Auth:             data,
 		NextRefreshAfter: refreshed.NextRefreshAfter,
 	}, nil
 }
