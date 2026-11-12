@@ -83,6 +83,63 @@ func TestDegrade_UnknownClientErrorsIgnored(t *testing.T) {
 	}
 }
 
+func TestDegrade_GlobalQueueDoesNotPenalizeNonStreamAuth(t *testing.T) {
+	gate := wbexecutor.NewDegradeGate()
+	queue := wbexecutor.Config{Doer: errDoer(http.StatusTooManyRequests, `{"code":6020,"msg":"queue.waiting.title"}`), Degrade: gate}
+	for i := 0; i < 5; i++ {
+		_, execErr := wbexecutor.Execute(context.Background(), queue, dummyReq("m"))
+		if execErr == nil || execErr.Kind != wbexecutor.ErrGlobalQueue || execErr.Status != http.StatusTooManyRequests {
+			t.Fatalf("round %d: expected global_queue/429, got %v", i, execErr)
+		}
+	}
+
+	calls := 0
+	healthy := wbexecutor.Config{Doer: countingDoer(&calls), Degrade: gate}
+	if _, execErr := wbexecutor.Execute(context.Background(), healthy, dummyReq("m")); execErr != nil {
+		t.Fatalf("global queue must not degrade the account, got %v", execErr)
+	}
+	if calls != 1 {
+		t.Fatalf("healthy request reached upstream %d times, want 1", calls)
+	}
+}
+
+func TestDegrade_GlobalQueueDoesNotPenalizeStreamAuth(t *testing.T) {
+	gate := wbexecutor.NewDegradeGate()
+	queueBody := `{"code":6020,"msg":"queue.waiting.title"}`
+	queue := wbexecutor.Config{
+		StreamDoer: func(ctx context.Context, method, url string, headers http.Header, payload []byte) (wbexecutor.StreamHandle, error) {
+			return streamDoerOf(http.StatusTooManyRequests, queueBody)(ctx, method, url, headers, payload)
+		},
+		StreamEmit:  func(string, []byte) error { return nil },
+		StreamClose: func(string, string) {},
+		Degrade:     gate,
+	}
+	for i := 0; i < 5; i++ {
+		err := wbexecutor.ExecuteStream(context.Background(), queue, dummyReq("m"))
+		if err == nil || err.Kind != wbexecutor.ErrGlobalQueue || err.Status != http.StatusTooManyRequests {
+			t.Fatalf("round %d: expected global_queue/429, got %v", i, err)
+		}
+	}
+
+	streamCalls := 0
+	healthy := wbexecutor.Config{
+		StreamDoer: func(context.Context, string, string, http.Header, []byte) (wbexecutor.StreamHandle, error) {
+			streamCalls++
+			body := `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\ndata: [DONE]\n\n"
+			return streamDoerOf(http.StatusOK, body)(context.Background(), "", "", nil, nil)
+		},
+		StreamEmit:  func(string, []byte) error { return nil },
+		StreamClose: func(string, string) {},
+		Degrade:     gate,
+	}
+	if err := wbexecutor.ExecuteStream(context.Background(), healthy, dummyReq("m")); err != nil {
+		t.Fatalf("global queue must not degrade the stream account, got %v", err)
+	}
+	if streamCalls != 1 {
+		t.Fatalf("healthy stream reached upstream %d times, want 1", streamCalls)
+	}
+}
+
 // 冷却窗过期后恢复（now seam 推进 10 分钟）。
 func TestDegrade_WindowExpiryRestores(t *testing.T) {
 	gate := wbexecutor.NewDegradeGate()

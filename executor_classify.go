@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbexecutor"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 )
 
 // executorFailure 带结构化错误码的执行器错误。
@@ -31,8 +32,12 @@ func classifyExecutorError(err error) *executorFailure {
 	}
 	var execErr *wbexecutor.ExecError
 	if errors.As(err, &execErr) {
+		code := execErr.Kind.String()
+		if execErr.Kind == wbexecutor.ErrGlobalQueue {
+			code = pluginabi.ErrorCodeRequestScoped
+		}
 		return &executorFailure{
-			code:       execErr.Kind.String(),
+			code:       code,
 			message:    execErr.Msg,
 			status:     execErr.Status,
 			retryAfter: execErr.RetryAfterSec,

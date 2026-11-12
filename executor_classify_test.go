@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mcheiyue/workbuddy-cpa/internal/wbexecutor"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 )
 
 // 上游 429/403 携带的重试提示必须结构化传给宿主（pluginabi.Error.RetryAfterSeconds，
@@ -36,6 +37,35 @@ func TestClassifyExecutorErrorZeroRetryAfterStaysZero(t *testing.T) {
 	}
 	if f.retryAfter != 0 {
 		t.Fatalf("retryAfter = %d, want 0", f.retryAfter)
+	}
+}
+
+func TestClassifyExecutorErrorMapsGlobalQueueToRequestScopedEnvelope(t *testing.T) {
+	failure := classifyExecutorError(&wbexecutor.ExecError{
+		Kind:          wbexecutor.ErrGlobalQueue,
+		Status:        429,
+		Msg:           "queue.waiting",
+		RetryAfterSec: 120,
+	})
+	if failure.code != pluginabi.ErrorCodeRequestScoped {
+		t.Fatalf("code = %q, want %q", failure.code, pluginabi.ErrorCodeRequestScoped)
+	}
+
+	var envelope pluginabi.Envelope
+	if err := json.Unmarshal(errorEnvelopeRetry(failure.code, failure.message, failure.status, failure.retryAfter), &envelope); err != nil {
+		t.Fatalf("decode error envelope: %v", err)
+	}
+	if envelope.OK || envelope.Error == nil {
+		t.Fatalf("unexpected envelope: %+v", envelope)
+	}
+	if !envelope.Error.IsRequestScoped() {
+		t.Fatalf("error = %+v, want request-scoped", envelope.Error)
+	}
+	if envelope.Error.HTTPStatus != 429 {
+		t.Errorf("http_status = %d, want 429", envelope.Error.HTTPStatus)
+	}
+	if envelope.Error.RetryAfterSeconds != 120 {
+		t.Errorf("retry_after_seconds = %d, want 120", envelope.Error.RetryAfterSeconds)
 	}
 }
 

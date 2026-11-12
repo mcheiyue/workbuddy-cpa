@@ -94,8 +94,11 @@ func TestBuildChatHeaders_CN(t *testing.T) {
 	assert("X-B3-Sampled", "1")
 	assert("X-Device-Token", "d1")
 	assert("Origin", "https://www.workbuddy.cn")
-	if !strings.Contains(h.Get("User-Agent"), "WorkBuddy/") {
-		t.Error("UA missing WorkBuddy/")
+	if got := h.Get("User-Agent"); got != "WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.137.1" {
+		t.Errorf("cn user-agent=%q", got)
+	}
+	if got := h.Get("X-IDE-Version"); got != "5.5.6" {
+		t.Errorf("cn X-IDE-Version=%q", got)
 	}
 }
 
@@ -112,6 +115,12 @@ func TestBuildChatHeaders_Global(t *testing.T) {
 	}
 	if h.Get("Accept-Language") != "en-US" {
 		t.Error("global Accept-Language wrong")
+	}
+	if got := h.Get("User-Agent"); got != "WorkBuddy/5.9.4 workbuddy-ai/5.9.4 CLI/2.165.0" {
+		t.Errorf("global user-agent=%q", got)
+	}
+	if got := h.Get("X-IDE-Version"); got != "5.9.4" {
+		t.Errorf("global X-IDE-Version=%q", got)
 	}
 }
 
@@ -141,6 +150,10 @@ func TestClassify_BusinessCodes(t *testing.T) {
 		{400, `{"code":11115,"msg":"prompt is too long"}`, wbexecutor.ErrPromptTooLong},
 		{502, `bad gateway`, wbexecutor.ErrServer},
 		{429, `{"msg":"Rate limit"}`, wbexecutor.ErrSoftRate},
+		{429, `{"code":6020,"msg":"queue.waiting.title"}`, wbexecutor.ErrGlobalQueue},
+		{429, `{"code": 6020, "msg":"queue.waiting.title"}`, wbexecutor.ErrGlobalQueue},
+		{429, `{"msg":"queue.waiting"}`, wbexecutor.ErrGlobalQueue},
+		{200, `{"code":6020,"msg":"queue.waiting.title"}`, wbexecutor.ErrNone},
 	}
 	for _, tt := range tests {
 		got := wbexecutor.Classify(tt.status, tt.body)

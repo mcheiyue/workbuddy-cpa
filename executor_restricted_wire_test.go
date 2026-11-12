@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -90,5 +91,82 @@ func TestExecutorRestrictionReachesHostStorage(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestExecutorGlobalQueueStreamCloseCarriesRequestScopedError(t *testing.T) {
+	oldCall, oldRegistry, oldGate := hostJSONCall, defaultRegistry, sharedDegradeGate
+	t.Cleanup(func() { hostJSONCall, defaultRegistry, sharedDegradeGate = oldCall, oldRegistry, oldGate })
+	defaultRegistry = wbmodels.NewRegistry()
+	defaultRegistry.Store("selected", map[string]string{"workbuddy/Auto": "auto"})
+	sharedDegradeGate = wbexecutor.NewDegradeGate()
+
+	closed := make(chan []byte, 1)
+	hostJSONCall = func(method string, payload any) (json.RawMessage, error) {
+		switch method {
+		case pluginabi.MethodHostHTTPDoStream:
+			return json.Marshal(hostHTTPStreamResponse{
+				StatusCode: http.StatusTooManyRequests,
+				Headers:    http.Header{"Retry-After": []string{"45"}},
+				StreamID:   "upstream",
+			})
+		case pluginabi.MethodHostHTTPStreamRead:
+			return json.Marshal(hostHTTPStreamChunk{
+				Payload: []byte(`{"code":6020,"msg":"queue.waiting.title"}`),
+				Done:    true,
+			})
+		case pluginabi.MethodHostHTTPStreamClose:
+			return json.RawMessage(`{}`), nil
+		case pluginabi.MethodHostStreamClose:
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				return nil, err
+			}
+			closed <- raw
+			return json.RawMessage(`{}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected host method %s", method)
+		}
+	}
+
+	request := rpcExecutorRequest{ExecutorRequest: pluginapi.ExecutorRequest{
+		AuthID: "selected", AuthProvider: "workbuddy", Model: "workbuddy/Auto", Format: "chat-completions",
+		StorageJSON: []byte(`{"type":"workbuddy","auth":{"accessToken":"test-token","realm":"cn"},"account":{"uid":"test-user"}}`),
+		Payload:     []byte(`{"model":"workbuddy/Auto","messages":[{"role":"user","content":"hello"}]}`),
+	}, HostCallbackID: "callback", StreamID: "downstream"}
+	rawRequest, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := handleExecutorMethod(pluginabi.MethodExecutorExecuteStream, rawRequest); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case rawClose := <-closed:
+		var closeRequest struct {
+			Error       string           `json:"error"`
+			ErrorDetail *pluginabi.Error `json:"error_detail"`
+		}
+		if err := json.Unmarshal(rawClose, &closeRequest); err != nil {
+			t.Fatalf("decode stream close request: %v", err)
+		}
+		if !strings.HasPrefix(closeRequest.Error, "upstream global_queue (http 429): ") || !strings.Contains(closeRequest.Error, "queue.waiting") {
+			t.Fatalf("error = %q, want original upstream error format", closeRequest.Error)
+		}
+		if closeRequest.ErrorDetail == nil || !closeRequest.ErrorDetail.IsRequestScoped() {
+			t.Fatalf("error_detail = %+v, want request-scoped error", closeRequest.ErrorDetail)
+		}
+		if closeRequest.ErrorDetail.Message != closeRequest.Error {
+			t.Errorf("error_detail.message = %q, want stream error %q", closeRequest.ErrorDetail.Message, closeRequest.Error)
+		}
+		if closeRequest.ErrorDetail.HTTPStatus != http.StatusTooManyRequests {
+			t.Errorf("http_status = %d, want 429", closeRequest.ErrorDetail.HTTPStatus)
+		}
+		if closeRequest.ErrorDetail.RetryAfterSeconds != 45 {
+			t.Errorf("retry_after_seconds = %d, want 45", closeRequest.ErrorDetail.RetryAfterSeconds)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("stream did not close")
 	}
 }

@@ -123,7 +123,22 @@ func executorExecuteStream(ctx context.Context, req rpcExecutorRequest) (plugina
 	}
 	go func() {
 		if execErr := wbexecutor.ExecuteStream(ctx, cfg, execReq); execErr != nil {
-			hostStreamClose(req.StreamID, recordExecutorFailure(req, execErr).Error())
+			streamErr := recordExecutorFailure(req, execErr)
+			failure := classifyExecutorError(streamErr)
+			if failure.code != pluginabi.ErrorCodeRequestScoped {
+				hostStreamClose(req.StreamID, streamErr.Error())
+				return
+			}
+			callHostJSON(pluginabi.MethodHostStreamClose, map[string]any{
+				"stream_id": req.StreamID,
+				"error":     streamErr.Error(),
+				"error_detail": &pluginabi.Error{
+					Code:              failure.code,
+					Message:           streamErr.Error(),
+					HTTPStatus:        failure.status,
+					RetryAfterSeconds: failure.retryAfter,
+				},
+			})
 		}
 	}()
 	return pluginapi.ExecutorStreamResponse{

@@ -30,6 +30,7 @@ const (
 	ErrDailyBudget                     // daily_budget_exceeded 当日积分预算耗尽（网关预算闸语义）
 	ErrToolCallMismatch                // 11148 工具调用/结果历史错配（请求级确定性错误，换号无用，不罚号）
 	ErrTransport                       // 无 HTTP 响应的传输层失败（连接/DNS/读写中断），不罚账号
+	ErrGlobalQueue                     // 6020 全局排队，与账号无关，不罚账号
 )
 
 func (k ErrKind) String() string {
@@ -62,6 +63,8 @@ func (k ErrKind) String() string {
 		return "tool_call_mismatch"
 	case ErrTransport:
 		return "transport"
+	case ErrGlobalQueue:
+		return "global_queue"
 	default:
 		return "none"
 	}
@@ -200,6 +203,10 @@ func Classify(status int, body string) ErrKind {
 	if strings.Contains(body, "daily_budget_exceeded") {
 		return ErrDailyBudget
 	}
+	// 6020 queue.waiting 是全局排队，不是账号限流；必须在普通 429 兜底前判定。
+	if status == http.StatusTooManyRequests && (strings.Contains(lower, "queue.waiting") || hasBusinessCode(body, "6020")) {
+		return ErrGlobalQueue
+	}
 	// 限流文案（通用 fallback）。
 	if status == http.StatusTooManyRequests || strings.Contains(lower, "rate limit") || strings.Contains(lower, "too many requests") {
 		return ErrSoftRate
@@ -264,6 +271,7 @@ func isToolCallMismatch(lower string) bool {
 var businessCodePatterns = map[string]*regexp.Regexp{
 	"6004":  regexp.MustCompile(`"code"\s*:\s*"?6004"?`),
 	"14018": regexp.MustCompile(`"code"\s*:\s*"?14018"?`),
+	"6020":  regexp.MustCompile(`"code"\s*:\s*"?6020"?`),
 }
 
 // hasBusinessCode 检查 JSON body 中 code 字段是否等于指定业务码（容空白/引号形态）。
