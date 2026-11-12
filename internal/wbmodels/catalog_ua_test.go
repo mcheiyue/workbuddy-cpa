@@ -98,18 +98,16 @@ func TestFetchAndParse_AllUAFail(t *testing.T) {
 	}
 }
 
-// 锁：cn 的 WorkBuddy UA 平台段必须是 WorkBuddy（global 是 WorkBuddy AI）——
-// 平台段按 realm 分叉是上游既有约定，写死会让 cn 拿不到门控后的目录。
 func TestCatalogUserAgents_RealmAwarePlatform(t *testing.T) {
 	global := catalogUserAgentsFor("global")
 	cn := catalogUserAgentsFor("cn")
 	if len(global) != 2 || len(cn) != 2 {
 		t.Fatalf("global=%v cn=%v, want 2 each", global, cn)
 	}
-	if !strings.Contains(global[1], "WorkBuddy AI/") {
-		t.Fatalf("global[1]=%q, want platform WorkBuddy AI", global[1])
+	if global[1] != "WorkBuddy/5.9.4 workbuddy-ai/5.9.4 CLI/2.165.0" {
+		t.Fatalf("global[1]=%q", global[1])
 	}
-	if !strings.Contains(cn[1], "WorkBuddy/") || strings.Contains(cn[1], "WorkBuddy AI/") {
-		t.Fatalf("cn[1]=%q, want platform WorkBuddy", cn[1])
+	if cn[1] != "WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.137.1" {
+		t.Fatalf("cn[1]=%q", cn[1])
 	}
 }

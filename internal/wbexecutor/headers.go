@@ -9,11 +9,13 @@ import (
 )
 
 const (
-	defaultClientVersion = "5.5.6"
-	defaultCliVersion    = "2.137.1"
-	chatCompletionsPath  = "/v2/chat/completions"
-	originRefererCN      = "https://www.workbuddy.cn"
-	originRefererGlobal  = "https://www.workbuddy.ai"
+	defaultClientVersionCN     = "5.5.6"
+	defaultCliVersionCN        = "2.137.1"
+	defaultClientVersionGlobal = "5.9.4"
+	defaultCliVersionGlobal    = "2.165.0"
+	chatCompletionsPath        = "/v2/chat/completions"
+	originRefererCN            = "https://www.workbuddy.cn"
+	originRefererGlobal        = "https://www.workbuddy.ai"
 )
 
 // BuildChatHeaders 在 req 上设置 WorkBuddy chat 出站所需的全部请求头。
@@ -28,7 +30,8 @@ func BuildChatHeaders(req *http.Request, cred Credential, conversationID, messag
 	h.Set("Origin", origin)
 	h.Set("Referer", origin+"/")
 	// User-Agent: 三段式 WorkBuddy/<ver> <platform>/<ver> CLI/<cliVer>。
-	h.Set("User-Agent", workBuddyUA(cred.Realm))
+	userAgent, clientVersion := workBuddyIdentity(cred.Realm)
+	h.Set("User-Agent", userAgent)
 	h.Set("X-CodeBuddy-Request", "1")
 	h.Set("Accept-Language", acceptLanguage(cred.Realm))
 	// Authorization: Bearer token 或 X-No-Authorization。
@@ -63,7 +66,7 @@ func BuildChatHeaders(req *http.Request, cred Credential, conversationID, messag
 	h.Set("X-Agent-Purpose", "conversation")
 	h.Set("X-IDE-Name", "WorkBuddy")
 	h.Set("X-IDE-Type", "WorkBuddy")
-	h.Set("X-IDE-Version", defaultClientVersion)
+	h.Set("X-IDE-Version", clientVersion)
 	h.Set("X-Product", "WorkBuddy")
 	// X-Device-Token（有才设）。
 	if cred.DeviceToken != "" {
@@ -114,12 +117,12 @@ func acceptLanguage(realm string) string {
 	return "zh-CN"
 }
 
-func workBuddyUA(realm string) string {
-	platform := "WorkBuddy"
+func workBuddyIdentity(realm string) (string, string) {
+	client, cli, platform := defaultClientVersionCN, defaultCliVersionCN, "WorkBuddy"
 	if realm == "global" {
-		platform = "WorkBuddy AI"
+		client, cli, platform = defaultClientVersionGlobal, defaultCliVersionGlobal, "workbuddy-ai"
 	}
-	return "WorkBuddy/" + defaultClientVersion + " " + platform + "/" + defaultClientVersion + " CLI/" + defaultCliVersion
+	return "WorkBuddy/" + client + " " + platform + "/" + client + " CLI/" + cli, client
 }
 
 // deriveAccountStableID 由 uid 稳定派生一个「带连字符的 UUID 形状」标识

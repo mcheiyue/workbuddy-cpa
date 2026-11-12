@@ -12,12 +12,12 @@ import (
 
 const v3ConfigPath = "/v3/config"
 
-// 目录拉取 UA 的版本段：与 internal/wbexecutor/headers.go 的
-// defaultClientVersion/defaultCliVersion 同源（chat 侧 UA）。本包不 import wbexecutor，
-// 避免 models→executor 反向依赖；沿用 billing_http.go「逐字对照 + 注释」的既有惯例。
+// 目录拉取 UA 版本按 realm 保存在本包，避免 models→executor 反向依赖。
 const (
-	catalogClientVersion = "5.5.6"
-	catalogCliVersion    = "2.137.1"
+	catalogClientVersionCN     = "5.5.6"
+	catalogCliVersionCN        = "2.137.1"
+	catalogClientVersionGlobal = "5.9.4"
+	catalogCliVersionGlobal    = "2.165.0"
 	// catalogLegacyCliUA 是历史沿用的纯 CLI UA，保持逐字不变以维持既有目录内容与顺序。
 	catalogLegacyCliUA = "CLI/2.63.2 CodeBuddy/2.63.2"
 )
@@ -28,13 +28,13 @@ const (
 // 但 cn 的 CLI 独有 default/glm-5.0/glm-4.7 在 WorkBuddy UA 下消失。故必须取并集，
 // 不能替换。CLI 放首位，保证重叠模型沿用既有展示名（公开 ID 由展示名派生）。
 func catalogUserAgentsFor(realm string) []string {
-	platform := "WorkBuddy"
+	client, cli, platform := catalogClientVersionCN, catalogCliVersionCN, "WorkBuddy"
 	if realm == wbauth.RealmGlobal {
-		platform = "WorkBuddy AI"
+		client, cli, platform = catalogClientVersionGlobal, catalogCliVersionGlobal, "workbuddy-ai"
 	}
 	return []string{
 		catalogLegacyCliUA,
-		"WorkBuddy/" + catalogClientVersion + " " + platform + "/" + catalogClientVersion + " CLI/" + catalogCliVersion,
+		"WorkBuddy/" + client + " " + platform + "/" + client + " CLI/" + cli,
 	}
 }
 

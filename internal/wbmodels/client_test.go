@@ -80,9 +80,10 @@ func TestFetchAndRegister_EndToEnd(t *testing.T) {
 				{"id": "model-a", "name": "Model A"},
 				{"id": "model-a", "name": "duplicate"},
 				{"id": "model-b", "name": "Model B"},
+				{"id": "deepseek-v4.1-flash-sg", "name": "DeepSeek V4.1 Flash"},
 				{"id": "nes-embed", "name": "Embed"},
 				{"id": "tiny", "name": "Tiny", "maxOutputTokens": 64},
-				{"id": "", "name": ""},             // 空 id + 空 name → 过滤
+				{"id": "", "name": ""}, // 空 id + 空 name → 过滤
 				{"disabled": true, "name": "Disabled"},
 			},
 		},
@@ -97,9 +98,8 @@ func TestFetchAndRegister_EndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// model-a + model-b = 2 个有效模型
-	if len(models) != 2 {
-		t.Fatalf("models=%d, want 2", len(models))
+	if len(models) != 3 {
+		t.Fatalf("models=%d, want 3", len(models))
 	}
 	// 验证映射注册
 	got, err := reg.ResolveModel("auth-test", models[0].ID)
@@ -108,6 +108,23 @@ func TestFetchAndRegister_EndToEnd(t *testing.T) {
 	}
 	if got != "model-a" {
 		t.Errorf("resolve=%q, want model-a", got)
+	}
+	var flashPublicID string
+	for _, model := range models {
+		if model.Name == "DeepSeek V4.1 Flash" {
+			flashPublicID = model.ID
+			break
+		}
+	}
+	if flashPublicID == "" {
+		t.Fatal("-sg model missing from catalog")
+	}
+	flashInternalID, err := reg.ResolveModel("auth-test", flashPublicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flashInternalID != "deepseek-v4.1-flash-sg" {
+		t.Fatalf("-sg internal id=%q", flashInternalID)
 	}
 }
 
