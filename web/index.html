@@ -80,7 +80,7 @@ body[data-view="tools"] .card[data-view="tools"]{display:block}
 <div class="card" data-view="tools">
   <div class="flex-between"><h2>模型目录</h2><div style="display:flex;gap:8px;align-items:center"><input id="modelFilter" placeholder="过滤模型…" oninput="filterModels()" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;background:var(--panel);color:var(--ink)"><button class="btn" onclick="loadModels()">刷新</button></div></div>
   <div id="modelsBody"><div class="empty">点击"刷新"加载模型</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">来自上游目录，同一模型合并为一行（全球/国内倍率并列），— 表示该区域无此模型；倍率每次刷新实时拉上游</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:8px">可调用 ID 使用内部 ID 生成（workbuddy/&lt;内部 ID&gt;），按内部 ID 合并一行（全球/国内倍率并列）；展示名相同但内部 ID 不同的模型仍分别显示，— 表示该区域无此模型</div>
 </div>
 
 <!-- 任务时间线 -->
@@ -313,7 +313,7 @@ function populateSelects(accounts){
 let cachedModels=[];
 function filterModels(){
   const q=(document.getElementById('modelFilter').value||'').toLowerCase();
-  const m=q?cachedModels.filter(x=>(x.id||'').toLowerCase().includes(q)||(x.display_name||'').toLowerCase().includes(q)||(x.realm||'').toLowerCase().includes(q)):cachedModels;
+  const m=q?cachedModels.filter(x=>(x.id||'').toLowerCase().includes(q)||(x.internal_id||'').toLowerCase().includes(q)||(x.display_name||'').toLowerCase().includes(q)||(x.realm||'').toLowerCase().includes(q)):cachedModels;
   renderModels(m);
 }
 function creditsCell(c){
@@ -325,20 +325,20 @@ function creditsCell(c){
 function mergeModels(rows){
   const byId=new Map();
   rows.forEach(x=>{
-    const key=x.internal_id||x.id||'';
-    if(!byId.has(key))byId.set(key,{id:x.id||'',display_name:x.display_name||'',global:'',cn:''});
+    const key=x.internal_id||'';
+    if(!byId.has(key))byId.set(key,{callable_id:key?'workbuddy/'+key:'',internal_id:key,display_name:x.display_name||'',global:'',cn:''});
     const e=byId.get(key);
     if(!e.display_name)e.display_name=x.display_name||'';
     if(x.realm==='cn')e.cn=x.credits||'';else e.global=x.credits||'';
   });
-  return Array.from(byId.values()).sort((a,b)=>a.id.localeCompare(b.id));
+  return Array.from(byId.values()).sort((a,b)=>a.internal_id.localeCompare(b.internal_id));
 }
 function renderModels(m){
   const rows=mergeModels(m);
   if(!rows.length){document.getElementById('modelsBody').innerHTML='<div class="empty">无匹配模型</div>';return}
-  let h='<table><tr><th>调用 ID</th><th>展示名</th><th>全球</th><th>国内</th></tr>';
+  let h='<table><tr><th>调用 ID</th><th>内部 ID</th><th>展示名</th><th>全球</th><th>国内</th></tr>';
   rows.forEach(x=>{
-    h+='<tr><td><code>'+esc(x.id)+'</code></td><td>'+esc(x.display_name)+'</td><td>'+creditsCell(x.global)+'</td><td>'+creditsCell(x.cn)+'</td></tr>';
+    h+='<tr><td><code>'+esc(x.callable_id)+'</code></td><td><code>'+esc(x.internal_id)+'</code></td><td>'+esc(x.display_name)+'</td><td>'+creditsCell(x.global)+'</td><td>'+creditsCell(x.cn)+'</td></tr>';
   });
   h+='</table>';document.getElementById('modelsBody').innerHTML=h;
 }
