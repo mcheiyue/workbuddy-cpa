@@ -175,10 +175,11 @@ func (s *managementService) modelsHandler() (pluginapi.ManagementResponse, error
 				continue
 			}
 			seen[key] = true
+			internalID := defaultRegistry.Resolve(file.AuthIndex, id)
 			models = append(models, modelEntry{
 				ID:          id,
-				InternalID:  defaultRegistry.Resolve(file.AuthIndex, id),
-				DisplayName: wbmodels.DisplayNameForModel(m.ID, m.Name),
+				InternalID:  internalID,
+				DisplayName: wbmodels.DisplayNameForModel(internalID, m.Name),
 				Realm:       realm,
 				Credits:     wbmodels.NormalizeCredits(m.Credits),
 				Source:      file.AuthIndex,

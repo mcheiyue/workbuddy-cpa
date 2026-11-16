@@ -154,14 +154,19 @@ func TestModelsHandler_DirectNotHostBridged(t *testing.T) {
 	}
 	var payload struct {
 		Models []struct {
-			ID string `json:"id"`
+			ID          string `json:"id"`
+			InternalID  string `json:"internal_id"`
+			DisplayName string `json:"display_name"`
 		} `json:"models"`
 	}
 	if err := json.Unmarshal(resp.Body, &payload); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(payload.Models) == 0 || payload.Models[0].ID != "workbuddy/Model A" {
-		t.Fatalf("models payload=%s (want workbuddy/Model A; public ID derives from display name)", resp.Body)
+	if len(payload.Models) == 0 || payload.Models[0].ID != "workbuddy/m-ctl-a" {
+		t.Fatalf("models payload=%s (want workbuddy/m-ctl-a; public ID derives from internal id)", resp.Body)
+	}
+	if payload.Models[0].InternalID != "m-ctl-a" || payload.Models[0].DisplayName != "Model A" {
+		t.Fatalf("models payload=%s (want separate internal id and display name)", resp.Body)
 	}
 	if len(violations) != 0 {
 		t.Fatalf("control plane used host HTTP bridge: %v", violations)

@@ -63,7 +63,7 @@ func TestModelsHandler_PerRealmCredits(t *testing.T) {
 					w.Write([]byte(`{"code":0,"data":{"models":[{"id":"deepseek-v4.1-flash","name":"Deepseek-V4.1-Flash","credits":"x0.11 credits"}]}}`))
 					return
 				}
-				w.Write([]byte(`{"code":0,"data":{"models":[{"id":"deepseek-v4.1-flash","name":"Deepseek-V4.1-Flash","credits":"x0.00"}]}}`))
+				w.Write([]byte(`{"code":0,"data":{"models":[{"id":"deepseek-v4.1-flash","name":"DeepSeek-V4.1-Flash","credits":"x0.00"}]}}`))
 			}}}, nil
 		},
 	}
@@ -88,33 +88,39 @@ func TestModelsHandler_PerRealmCredits(t *testing.T) {
 	if len(payload.Models) != 2 {
 		t.Fatalf("want 2 per-realm rows, got %d: %s", len(payload.Models), resp.Body)
 	}
-	got := map[string]string{}
+	gotID := map[string]string{}
+	gotCredits := map[string]string{}
 	for _, m := range payload.Models {
-		got[m.Realm] = m.Credits
+		gotID[m.Realm] = m.ID
+		gotCredits[m.Realm] = m.Credits
 	}
-	if got["cn"] != "x0.11" {
-		t.Errorf("cn credits=%q want x0.11 (suffix stripped)", got["cn"])
+	if gotCredits["cn"] != "x0.11" {
+		t.Errorf("cn credits=%q want x0.11 (suffix stripped)", gotCredits["cn"])
 	}
-	if got["global"] != "x0.00" {
-		t.Errorf("global credits=%q want x0.00", got["global"])
+	if gotCredits["global"] != "x0.00" {
+		t.Errorf("global credits=%q want x0.00", gotCredits["global"])
 	}
-	// 前端按 internal_id 合并同一模型（两 realm 的公开 ID 大小写不同：
-	// CN DeepSeek-V4.1-Flash / Global Deepseek-V4.1-Flash），缺这个字段就只能靠 id 合并、
-	// 同一模型会被拆成两行且各缺一列倍率。
 	for _, m := range payload.Models {
+		if m.ID != "workbuddy/deepseek-v4.1-flash" {
+			t.Errorf("%s callable id=%q want workbuddy/deepseek-v4.1-flash", m.Realm, m.ID)
+		}
 		if m.InternalID != "deepseek-v4.1-flash" {
 			t.Errorf("%s internal_id=%q want deepseek-v4.1-flash", m.Realm, m.InternalID)
 		}
+	}
+	if _, err := defaultRegistry.ResolveModel("cn1", "workbuddy/Deepseek-V4.1-Flash"); err == nil {
+		t.Fatal("display-name-derived ID still resolves after the callable-ID migration")
 	}
 }
 
 // TestWebUIModelsCreditsColumn 模型目录前端契约：同一模型跨区域合并为一行，
 // 倍率按「全球/国内」两列并列——按区域拆成两行时无法横向对比（用户反馈）。
+// 公开 ID 由内部 ID 派生后，表格同时列出可调用 ID 与内部 ID。
 func TestWebUIModelsCreditsColumn(t *testing.T) {
 	html := string(workbuddyWebUI)
 	for _, want := range []string{
 		"mergeModels",
-		"<th>调用 ID</th><th>展示名</th><th>全球</th><th>国内</th>",
+		"<th>调用 ID</th><th>内部 ID</th><th>展示名</th><th>全球</th><th>国内</th>",
 		"免费",
 	} {
 		if !strings.Contains(html, want) {
@@ -127,8 +133,8 @@ func TestWebUIModelsCreditsColumn(t *testing.T) {
 			t.Errorf("model directory still carries obsolete %q", gone)
 		}
 	}
-	// 页脚文案须说明同模型合并与实时倍率，否则沿用旧「按区域去重」会误导。
-	for _, want := range []string{"同一模型", "实时拉上游"} {
+	// 页脚文案须说明按内部 ID 合并、同名不同内部 ID 分别显示，否则沿用旧「按区域去重」会误导。
+	for _, want := range []string{"按内部 ID 合并", "展示名相同但内部 ID 不同"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("model directory footer missing updated copy %q", want)
 		}
