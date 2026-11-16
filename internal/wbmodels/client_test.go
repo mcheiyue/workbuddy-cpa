@@ -158,8 +158,8 @@ func TestFetchAndRegister_PerAuthIsolation(t *testing.T) {
 
 func TestToPluginModels(t *testing.T) {
 	models := []ModelInfo{
-		{ID: "workbuddy/Model A", Name: "Model A", SupportsReason: true, MaxInputTokens: 131072},
-		{ID: "workbuddy/Model B", Name: "Model B"},
+		{ID: "workbuddy/model-a", Name: "Model A", SupportsReason: true, MaxInputTokens: 131072},
+		{ID: "workbuddy/model-b", Name: "Model B"},
 	}
 	out := ToPluginModels("workbuddy", models)
 	if len(out) != 2 {

@@ -26,7 +26,7 @@ const (
 // 上游按 UA 段门控目录规模，两种 UA 各能拿到对方没有的模型——实测 2026-10-16：
 // global 纯 CLI 20 个 / WorkBuddy 27 个（纯增 7）；cn 纯 CLI 33 个 / WorkBuddy 60 个，
 // 但 cn 的 CLI 独有 default/glm-5.0/glm-4.7 在 WorkBuddy UA 下消失。故必须取并集，
-// 不能替换。CLI 放首位，保证重叠模型沿用既有展示名（公开 ID 由展示名派生）。
+// 不能替换。CLI 放首位，保证重叠模型沿用既有展示名。
 func catalogUserAgentsFor(realm string) []string {
 	client, cli, platform := catalogClientVersionCN, catalogCliVersionCN, "WorkBuddy"
 	if realm == wbauth.RealmGlobal {
@@ -151,7 +151,7 @@ func ToPluginModels(provider string, models []ModelInfo) []modelOutput {
 			ID:                         m.ID,
 			Object:                     "model",
 			OwnedBy:                    provider,
-			Name:                       m.ID, // Name = 内部 key（公开 ID 已在 FilterAndBuild 中替换）
+			Name:                       m.ID, // m.ID 已是公开 ID（FilterAndBuild 生成）
 			DisplayName:                DisplayNameForModel(m.ID, m.Name),
 			SupportedGenerationMethods: []string{"chat-completions"},
 		}

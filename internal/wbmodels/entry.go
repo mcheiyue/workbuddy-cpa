@@ -1,7 +1,7 @@
 // Package wbmodels 提供 WorkBuddy 模型目录获取、解析和 per-AuthID 动态反向映射。
 //
 // 模型目录来源：上游 /v3/config（按 realm 切 base）。
-// 公开 ID 生成：优先上游 display name；冲突时生成稳定可逆后缀。
+// 公开 ID 生成：由上游内部 ID 直接派生 workbuddy/<internal_id>，与展示名解耦。
 // 反向映射：per-AuthID 隔离，RWMutex 并发安全。
 package wbmodels
 
@@ -107,47 +107,28 @@ func NormalizeCredits(raw string) string {
 }
 
 // DisplayNameForModel 返回模型的展示名：优先上游 Name（即 display name），
-// 缺失时回退到 ID（内部 key）。
+// 缺失时回退到内部 key。
 func DisplayNameForModel(id, upstreamName string) string {
 	if name := strings.TrimSpace(upstreamName); name != "" {
 		return name
 	}
-	return strings.TrimSpace(id)
+	id = strings.TrimSpace(id)
+	return strings.TrimPrefix(id, provider+"/")
 }
 
-// PublicModelID 生成公开模型 ID（provider/name 格式）。
-func PublicModelID(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
+// PublicModelID 生成公开模型 ID（provider/internal-id 格式）。
+func PublicModelID(internalID string) string {
+	internalID = strings.TrimSpace(internalID)
+	if internalID == "" {
 		return ""
 	}
-	return provider + "/" + name
-}
-
-// UniquePublicModelID 生成不冲突的公开 ID。映射冲突时先尝试用内部 key，
-// 再递增后缀。mapping 在同一批次构建过程中传入（原子快照由 Registry 负责）。
-func UniquePublicModelID(name, internalID string, mapping map[string]string) string {
-	preferred := PublicModelID(name)
-	if preferred == "" {
-		return ""
-	}
-	if existing, ok := mapping[preferred]; !ok || existing == internalID {
-		return preferred
-	}
-	fallback := PublicModelID(internalID)
-	if existing, ok := mapping[fallback]; !ok || existing == internalID {
-		return fallback
-	}
-	for suffix := 2; ; suffix++ {
-		candidate := PublicModelID(internalID + "-" + fmt.Sprint(suffix))
-		if _, exists := mapping[candidate]; !exists {
-			return candidate
-		}
-	}
+	return provider + "/" + internalID
 }
 
 // FilterAndBuild 从 ModelInfo 列表构建映射表和 ModelInfo 条目列表。
 // 去重 key = 内部 ID（id 字段），目录顺序变化不影响结果。
+// 公开 ID 恒为 workbuddy/<内部 ID>：与展示名无关，因此同一内部 ID 跨 realm 得到同一
+// 公开 ID，而同名不同内部 ID 的两个模型各自保有自己的公开 ID。
 // 返回：mapping（公开 ID→内部 ID）、entries（ModelInfo 列表，ID 已替换为公开 ID）。
 func FilterAndBuild(models []ModelInfo) (mapping map[string]string, entries []ModelInfo) {
 	mapping = make(map[string]string, len(models))
@@ -166,13 +147,11 @@ func FilterAndBuild(models []ModelInfo) (mapping map[string]string, entries []Mo
 		if _, exists := seenInternal[internalID]; exists {
 			continue
 		}
-		seenInternal[internalID] = struct{}{}
-
-		name := DisplayNameForModel(internalID, m.Name)
-		publicID := UniquePublicModelID(name, internalID, mapping)
+		publicID := PublicModelID(internalID)
 		if publicID == "" {
 			continue
 		}
+		seenInternal[internalID] = struct{}{}
 		mapping[publicID] = internalID
 
 		out := m

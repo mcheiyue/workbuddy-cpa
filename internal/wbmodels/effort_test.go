@@ -10,13 +10,13 @@ import (
 
 func TestRegistry_EffortsPerAuthAndPrefix(t *testing.T) {
 	reg := NewRegistry()
-	reg.StoreWithMeta("auth-1", map[string]string{"workbuddy/Model A": "model-a"}, map[string][]string{
-		"workbuddy/Model A": {"low", "high"},
+	reg.StoreWithMeta("auth-1", map[string]string{"workbuddy/model-a": "model-a"}, map[string][]string{
+		"workbuddy/model-a": {"low", "high"},
 	})
-	if got := reg.Efforts("auth-1", "Model A"); len(got) != 2 || got[1] != "high" {
+	if got := reg.Efforts("auth-1", "model-a"); len(got) != 2 || got[1] != "high" {
 		t.Fatalf("efforts=%v", got)
 	}
-	if got := reg.Efforts("auth-2", "workbuddy/Model A"); len(got) != 0 {
+	if got := reg.Efforts("auth-2", "workbuddy/model-a"); len(got) != 0 {
 		t.Fatalf("cross-auth efforts=%v", got)
 	}
 }
@@ -32,13 +32,13 @@ func TestFetchAndRegister_StoresReasoningEfforts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := reg.Efforts("auth", "workbuddy/Model A"); len(got) != 2 || got[0] != "low" {
+	if got := reg.Efforts("auth", "workbuddy/model-a"); len(got) != 2 || got[0] != "low" {
 		t.Fatalf("model-a efforts=%v", got)
 	}
-	if got := reg.Efforts("auth", "workbuddy/Model B"); len(got) != 1 || got[0] != "high" {
+	if got := reg.Efforts("auth", "workbuddy/model-b"); len(got) != 1 || got[0] != "high" {
 		t.Fatalf("model-b efforts=%v", got)
 	}
-	if got := reg.Efforts("auth", "workbuddy/Model C"); len(got) != 0 {
+	if got := reg.Efforts("auth", "workbuddy/model-c"); len(got) != 0 {
 		t.Fatalf("model-c efforts=%v", got)
 	}
 }

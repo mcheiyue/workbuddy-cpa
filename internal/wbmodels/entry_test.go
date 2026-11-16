@@ -50,6 +50,7 @@ func TestDisplayNameForModel(t *testing.T) {
 		{"model-a", "Model A", "Model A"},
 		{"model-a", "", "model-a"},
 		{"model-a", "  ", "model-a"},
+		{"workbuddy/model-a", "", "model-a"},
 		{"new-model", "New Model", "New Model"},
 	}
 	for _, tt := range tests {
@@ -62,59 +63,11 @@ func TestDisplayNameForModel(t *testing.T) {
 // --- PublicModelID ---
 
 func TestPublicModelID(t *testing.T) {
-	if got := PublicModelID("Model A"); got != "workbuddy/Model A" {
+	if got := PublicModelID("model-a"); got != "workbuddy/model-a" {
 		t.Errorf("PublicModelID = %q", got)
 	}
 	if got := PublicModelID(""); got != "" {
 		t.Errorf("PublicModelID('') = %q, want empty", got)
-	}
-}
-
-// --- UniquePublicModelID 冲突回退 ---
-
-func TestUniquePublicModelID_NoCollision(t *testing.T) {
-	mapping := map[string]string{}
-	got := UniquePublicModelID("Model A", "model-a", mapping)
-	if got != "workbuddy/Model A" {
-		t.Errorf("got %q, want workbuddy/Model A", got)
-	}
-}
-
-func TestUniquePublicModelID_DisplayNameCollision(t *testing.T) {
-	mapping := map[string]string{"workbuddy/Same Name": "model-a"}
-	// 两个模型共享展示名 "Same Name"，第二个应回退到内部 key
-	got := UniquePublicModelID("Same Name", "model-b", mapping)
-	if got != "workbuddy/model-b" {
-		t.Errorf("got %q, want workbuddy/model-b", got)
-	}
-}
-
-func TestUniquePublicModelID_BothCollision(t *testing.T) {
-	// 同一个 internalID 映射到 "workbuddy/model-b"，无冲突
-	mapping := map[string]string{
-		"workbuddy/Same Name": "model-a",
-		"workbuddy/model-b":   "model-b",
-	}
-	got := UniquePublicModelID("Same Name", "model-b", mapping)
-	if got != "workbuddy/model-b" {
-		t.Errorf("got %q, want workbuddy/model-b (same internalID, no collision)", got)
-	}
-
-	// 不同 internalID 且 fallback 也冲突 → 递增后缀
-	mapping2 := map[string]string{
-		"workbuddy/Same Name": "model-a",
-		"workbuddy/model-b":   "model-x",
-	}
-	got2 := UniquePublicModelID("Same Name", "model-b", mapping2)
-	if got2 != "workbuddy/model-b-2" {
-		t.Errorf("got %q, want workbuddy/model-b-2", got2)
-	}
-}
-
-func TestUniquePublicModelID_EmptyName(t *testing.T) {
-	got := UniquePublicModelID("", "model-a", map[string]string{})
-	if got != "" {
-		t.Errorf("got %q, want empty", got)
 	}
 }
 
@@ -130,8 +83,65 @@ func TestFilterAndBuild_Dedup(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatalf("entries=%d, want 2", len(entries))
 	}
-	if mapping["workbuddy/Model A"] != "model-a" {
+	if mapping["workbuddy/model-a"] != "model-a" {
 		t.Errorf("mapping wrong: %v", mapping)
+	}
+	// 旧展示名派生的公开 ID 不得再被注册（本次为破坏性变更，无兼容别名）。
+	if _, ok := mapping["workbuddy/Model A"]; ok {
+		t.Errorf("display-name-derived ID still registered: %v", mapping)
+	}
+}
+
+// 公开 ID 由内部 ID 派生：同一展示名、不同内部 ID 的两个模型必须各自可调用。
+func TestFilterAndBuild_SameNameDifferentInternalIDsStayDistinct(t *testing.T) {
+	models := []ModelInfo{
+		{ID: "deepseek-v4.1-flash", Name: "Deepseek-V4.1-Flash"},
+		{ID: "deepseek-v4.1-flash-sg", Name: "Deepseek-V4.1-Flash"},
+	}
+	mapping, entries := FilterAndBuild(models)
+	if len(entries) != 2 {
+		t.Fatalf("entries=%d, want 2 (same display name must not collapse)", len(entries))
+	}
+	wantIDs := []string{"workbuddy/deepseek-v4.1-flash", "workbuddy/deepseek-v4.1-flash-sg"}
+	for i, want := range wantIDs {
+		if entries[i].ID != want {
+			t.Errorf("entries[%d].ID=%q, want %q", i, entries[i].ID, want)
+		}
+		if mapping[want] != models[i].ID {
+			t.Errorf("mapping[%q]=%q, want %q", want, mapping[want], models[i].ID)
+		}
+	}
+	for i := range entries {
+		if entries[i].Name != "Deepseek-V4.1-Flash" {
+			t.Errorf("entries[%d].Name=%q, want upstream display name preserved", i, entries[i].Name)
+		}
+	}
+}
+
+// 公开 ID 与展示名解耦：上游改名不改变已注册的可调用 ID。
+func TestFilterAndBuild_StableAcrossRenamedDisplayNames(t *testing.T) {
+	before, _ := FilterAndBuild([]ModelInfo{{ID: "model-a", Name: "Model A"}})
+	after, entries := FilterAndBuild([]ModelInfo{{ID: "model-a", Name: "Model A Renamed"}})
+	if before["workbuddy/model-a"] != "model-a" || after["workbuddy/model-a"] != "model-a" {
+		t.Fatalf("public ID moved with display name: before=%v after=%v", before, after)
+	}
+	if len(entries) != 1 || entries[0].ID != "workbuddy/model-a" {
+		t.Fatalf("entries=%v, want single workbuddy/model-a", entries)
+	}
+	if entries[0].Name != "Model A Renamed" {
+		t.Errorf("Name=%q, want renamed upstream display name", entries[0].Name)
+	}
+}
+
+// 同一内部 ID 出现在两个 realm 的目录里时得到同一个可调用 ID。
+func TestFilterAndBuild_SameInternalIDAcrossRealms(t *testing.T) {
+	cn, _ := FilterAndBuild([]ModelInfo{{ID: "deepseek-v4.1-flash", Name: "Deepseek-V4.1-Flash"}})
+	global, _ := FilterAndBuild([]ModelInfo{{ID: "deepseek-v4.1-flash", Name: "DeepSeek-V4.1-Flash"}})
+	if _, ok := cn["workbuddy/deepseek-v4.1-flash"]; !ok {
+		t.Fatalf("cn mapping=%v", cn)
+	}
+	if _, ok := global["workbuddy/deepseek-v4.1-flash"]; !ok {
+		t.Fatalf("global mapping=%v (case-differing display name must not change ID)", global)
 	}
 }
 
@@ -187,7 +197,7 @@ func TestParseConfigModels(t *testing.T) {
 				{"id": "gpt-5.6", "name": "GPT 5.6", "disabled": false},
 				{"id": "nes-embedding", "name": "NES Embed", "disabled": false},
 				{"id": "fast", "name": "Fast", "disabled": true},
-				{"id": "", "name": ""},             // 空 id + 空 name → 过滤
+				{"id": "", "name": ""}, // 空 id + 空 name → 过滤
 				{"id": "tiny", "name": "Tiny", "maxOutputTokens": 64},
 			},
 		},
