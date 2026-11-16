@@ -27,18 +27,33 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             arch: amd64
+            cflags: -O2 -march=x86-64 -mtune=generic
           - os: ubuntu-24.04-arm
             arch: arm64
+            cflags: -O2
     runs-on: ${{ matrix.os }}
+    env:
+      # 宿主生产机是 Ivy Bridge（无 AVX2/BMI2）。ubuntu-latest 已滚到新镜像，
+      # 其 GCC 默认目标抬高后，cgo 产物带 BMI2 指令，宿主预检 dlopen 时 SIGILL。
+      # amd64 显式钉死基线指令集，避免镜像升级再次静默抬高产物要求。
+      CGO_CFLAGS: ${{ matrix.cflags }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - run: gcc -dumpmachine; gcc -dumpversion; go env GOAMD64
       - run: mkdir -p dist/linux/${{ matrix.arch }}
       - run: CGO_ENABLED=1 go build -buildmode=c-shared -trimpath -ldflags='-s -w' -o dist/linux/${{ matrix.arch }}/workbuddy.so .
+      - name: verify no BMI2 in cgo objects
+        run: |
+          so=dist/linux/${{ matrix.arch }}/workbuddy.so
+          if objdump -d --no-show-raw-insn "$so" | grep -qwE 'shlx|shrx|sarx'; then
+            echo "FATAL: baseline violation (BMI2 shlx/shrx/sarx present)"; exit 1
+          fi
+          echo "baseline OK"
       - uses: actions/upload-artifact@v4
         with:
           name: workbuddy-linux-${{ matrix.arch }}
