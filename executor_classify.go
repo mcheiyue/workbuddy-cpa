@@ -33,8 +33,11 @@ func classifyExecutorError(err error) *executorFailure {
 	var execErr *wbexecutor.ExecError
 	if errors.As(err, &execErr) {
 		code := execErr.Kind.String()
-		if execErr.Kind == wbexecutor.ErrGlobalQueue {
+		switch execErr.Kind {
+		case wbexecutor.ErrGlobalQueue, wbexecutor.ErrModelMissing:
 			code = pluginabi.ErrorCodeRequestScoped
+		case wbexecutor.ErrModelBlocked:
+			code = pluginabi.ErrorCodeModelNotFound
 		}
 		return &executorFailure{
 			code:       code,

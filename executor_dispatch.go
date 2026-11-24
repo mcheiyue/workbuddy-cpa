@@ -125,7 +125,7 @@ func executorExecuteStream(ctx context.Context, req rpcExecutorRequest) (plugina
 		if execErr := wbexecutor.ExecuteStream(ctx, cfg, execReq); execErr != nil {
 			streamErr := recordExecutorFailure(req, execErr)
 			failure := classifyExecutorError(streamErr)
-			if failure.code != pluginabi.ErrorCodeRequestScoped {
+			if failure.code != pluginabi.ErrorCodeRequestScoped && failure.code != pluginabi.ErrorCodeModelNotFound {
 				hostStreamClose(req.StreamID, streamErr.Error())
 				return
 			}

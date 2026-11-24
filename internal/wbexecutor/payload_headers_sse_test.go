@@ -146,7 +146,7 @@ func TestClassify_BusinessCodes(t *testing.T) {
 		{429, `{"code":6004}`, wbexecutor.ErrModelRateLimit},
 		{200, `{"code":12153,"msg":"Offline user session not found"}`, wbexecutor.ErrSessionDead},
 		{400, `{"code":11128}`, wbexecutor.ErrBadParams},
-		{400, `{"code":11102,"msg":"service info not found"}`, wbexecutor.ErrModelBlocked},
+		{400, `{"code":11102,"msg":"service info not found"}`, wbexecutor.ErrModelMissing},
 		{400, `{"code":11115,"msg":"prompt is too long"}`, wbexecutor.ErrPromptTooLong},
 		{502, `bad gateway`, wbexecutor.ErrServer},
 		{429, `{"msg":"Rate limit"}`, wbexecutor.ErrSoftRate},

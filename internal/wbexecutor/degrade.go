@@ -96,11 +96,11 @@ func degradeWindow(err *ExecError) time.Duration {
 	return degradeCooldown
 }
 
-// degradeKnownKind：已知原因集（429/5xx/12153/11140/11102/6004/欠费/daily_budget 族）。
+// degradeKnownKind：已知账号级原因集；模型级错误不计入账号连败。
 func degradeKnownKind(k ErrKind) bool {
 	// ErrGlobalQueue 整体账号共享，不应推进单账号降权计数。
 	switch k {
-	case ErrModelRateLimit, ErrSessionDead, ErrModelBlocked, ErrAccountFault,
+	case ErrModelRateLimit, ErrSessionDead, ErrAccountFault,
 		ErrHardCredit, ErrSoftRate, ErrServer, ErrDailyBudget:
 		return true
 	}

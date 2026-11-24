@@ -3,7 +3,6 @@ package wbexecutor
 import (
 	"encoding/json"
 	"log"
-	"regexp"
 	"strings"
 )
 
@@ -11,11 +10,6 @@ var effortRank = map[string]int{
 	"off": 0, "minimal": 1, "low": 2, "medium": 3,
 	"high": 4, "xhigh": 5, "max": 6,
 }
-
-var (
-	billingHeaderLineRE   = regexp.MustCompile(`(?im)^[ \t]*x-anthropic-billing-(?:header|hdr)[ \t]*:[^\r\n]*(?:\r?\n|$)`)
-	billingHeaderInlineRE = regexp.MustCompile(`(?i)x-anthropic-billing-(?:header|hdr)[ \t]*:[ \t]*[^;\r\n]*(?:;[ \t]*)?`)
-)
 
 func normalizeReasoningEffort(obj map[string]any, supported []string) {
 	if len(supported) == 0 {
@@ -65,131 +59,6 @@ func normalizeReasoningEffort(obj map[string]any, supported []string) {
 		obj[key] = lowest
 		log.Printf("WARN: [workbuddy] reasoning_effort floored %s -> %s", req, lowest)
 	}
-}
-
-// PreparePayload 对下游 chat completion JSON 做上游适配改写：
-//  1. 强制 stream:true（上游拒绝非流式）
-//  2. max_completion_tokens → max_tokens 翻译（上游只认 max_tokens）
-//  3. stream_options: {include_usage: true} 注入（末帧返回 usage）
-//  4. tool_choice 归一化（上游该字段是 string，对象形式 400）
-//  5. developer 角色 → system（上游 role 白名单不含 developer）
-//
-// ref: workbuddy2api/internal/upstream/payload.go
-func PreparePayload(src []byte) []byte {
-	if len(src) == 0 {
-		return src
-	}
-	var obj map[string]any
-	if err := json.Unmarshal(src, &obj); err != nil {
-		return src
-	}
-	obj["stream"] = true
-	translateMaxCompletionTokens(obj)
-	// Orchids 92cc1391：上游 working shape 缺省 max_tokens=8192；显式值保留。
-	if _, has := obj["max_tokens"]; !has {
-		obj["max_tokens"] = 8192
-	}
-	// Orchids d3b099ef：缓存选择与并行调度留给上游，顶层键省略。
-	delete(obj, "prompt_cache_key")
-	delete(obj, "parallel_tool_calls")
-	if _, has := obj["stream_options"]; !has {
-		obj["stream_options"] = map[string]any{"include_usage": true}
-	}
-	normalizeToolChoice(obj)
-	normalizeRoles(obj)
-	// E2 A3a：tool 结果紧跟 tool_calls + 孤儿清理（ref tool_pairing.go，11148 破序防）
-	if msgs, ok := obj["messages"].([]any); ok {
-		if repacked, changed := repackToolResultBlocks(msgs); changed {
-			msgs = repacked
-			obj["messages"] = msgs
-		}
-		if cleaned, changed := cleanupOrphanToolCalls(msgs); changed {
-			obj["messages"] = cleaned
-		}
-	}
-	sanitizeBillingHeaders(obj)
-	// 必须在 normalizeRoles（developer→system）与 A3a 重排之后跑：
-	// 上游 11128 实测拒首条非 system；把首个 system 挪到首位或注入缺省。
-	ensureLeadingSystem(obj)
-	out, err := json.Marshal(obj)
-	if err != nil {
-		return src
-	}
-	return out
-}
-
-func sanitizeBillingHeaders(obj map[string]any) {
-	msgs, ok := obj["messages"].([]any)
-	if !ok {
-		return
-	}
-	cleaned := make([]any, 0, len(msgs))
-	for _, raw := range msgs {
-		msg, ok := raw.(map[string]any)
-		if !ok {
-			cleaned = append(cleaned, raw)
-			continue
-		}
-		role, _ := msg["role"].(string)
-		if role != "system" && role != "developer" && role != "assistant" {
-			cleaned = append(cleaned, raw)
-			continue
-		}
-		content := msg["content"]
-		content, changed, empty := sanitizeBillingContent(content)
-		if changed {
-			msg["content"] = content
-		}
-		if (role == "system" || role == "developer") && changed && empty {
-			continue
-		}
-		cleaned = append(cleaned, raw)
-	}
-	obj["messages"] = cleaned
-}
-
-func sanitizeBillingContent(content any) (any, bool, bool) {
-	switch value := content.(type) {
-	case string:
-		cleaned := sanitizeBillingText(value)
-		changed := cleaned != value
-		return cleaned, changed, changed && strings.TrimSpace(cleaned) == ""
-	case []any:
-		blocks := make([]any, 0, len(value))
-		changed := false
-		for _, raw := range value {
-			block, ok := raw.(map[string]any)
-			if !ok {
-				blocks = append(blocks, raw)
-				continue
-			}
-			blockType, _ := block["type"].(string)
-			text, ok := block["text"].(string)
-			if blockType != "text" || !ok {
-				blocks = append(blocks, raw)
-				continue
-			}
-			cleaned := sanitizeBillingText(text)
-			if cleaned == text {
-				blocks = append(blocks, raw)
-				continue
-			}
-			changed = true
-			if strings.TrimSpace(cleaned) == "" {
-				continue
-			}
-			block["text"] = cleaned
-			blocks = append(blocks, raw)
-		}
-		return blocks, changed, changed && len(blocks) == 0
-	default:
-		return content, false, false
-	}
-}
-
-func sanitizeBillingText(text string) string {
-	text = billingHeaderLineRE.ReplaceAllString(text, "")
-	return billingHeaderInlineRE.ReplaceAllString(text, "")
 }
 
 func setModel(body []byte, model string, supported []string) ([]byte, error) {

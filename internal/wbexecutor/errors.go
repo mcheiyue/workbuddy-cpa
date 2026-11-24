@@ -19,7 +19,8 @@ const (
 	ErrModelRateLimit                  // 6004 模型级限流
 	ErrSessionDead                     // 12153 会话失效
 	ErrBadParams                       // 11128/11101 请求参数错误
-	ErrModelBlocked                    // 11102 该后端无此模型
+	ErrModelMissing                    // 11102/14401 请求指定模型不存在
+	ErrModelBlocked                    // 11158 当前账号类型无权使用模型
 	ErrPromptTooLong                   // 11115 prompt 超长
 	ErrContentBlocked                  // 审核拦截
 	ErrAccountFault                    // 账号级故障（request illegal 等）
@@ -41,6 +42,8 @@ func (k ErrKind) String() string {
 		return "session_dead"
 	case ErrBadParams:
 		return "bad_params"
+	case ErrModelMissing:
+		return "model_missing"
 	case ErrModelBlocked:
 		return "model_blocked"
 	case ErrPromptTooLong:
@@ -162,9 +165,8 @@ func isAccountRestricted(body string) bool {
 // Classify 按 HTTP 状态码 + body 判定错误分类。
 // 判定顺序对齐 workbuddy2api Classify（ref: client.go）。
 func Classify(status int, body string) ErrKind {
-	// 11102 最先判：「该后端无此模型」语义最具体。
-	if isModelBlocked(status, body) {
-		return ErrModelBlocked
+	if kind := classifyModelError(status, body); kind != ErrNone {
+		return kind
 	}
 	if status == http.StatusPaymentRequired {
 		return ErrHardCredit
@@ -237,17 +239,6 @@ func Classify(status int, body string) ErrKind {
 		return ErrClient
 	}
 	return ErrNone
-}
-
-// isModelBlocked 判定是否为 11102「该后端无此模型」。
-func isModelBlocked(status int, body string) bool {
-	if status != http.StatusBadRequest && status != http.StatusNotFound {
-		return false
-	}
-	if body == "" {
-		return false
-	}
-	return strings.Contains(body, "11102") || strings.Contains(strings.ToLower(body), "service info not found")
 }
 
 func isPromptTooLongStatus(status int) bool {

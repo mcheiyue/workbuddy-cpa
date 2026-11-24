@@ -103,8 +103,8 @@ func TestExecute_NonStream(t *testing.T) {
 func TestExecute_Upstream400(t *testing.T) {
 	cfg := wbexecutor.Config{Doer: errDoer(400, `{"code":11102}`)}
 	_, execErr := wbexecutor.Execute(context.Background(), cfg, dummyReq("m"))
-	if execErr == nil || execErr.Kind != wbexecutor.ErrModelBlocked {
-		t.Fatalf("expected model_blocked, got %v", execErr)
+	if execErr == nil || execErr.Kind != wbexecutor.ErrModelMissing {
+		t.Fatalf("expected model_missing, got %v", execErr)
 	}
 }
 
