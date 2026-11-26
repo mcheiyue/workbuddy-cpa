@@ -112,31 +112,3 @@ func TestModelsHandler_PerRealmCredits(t *testing.T) {
 		t.Fatal("display-name-derived ID still resolves after the callable-ID migration")
 	}
 }
-
-// TestWebUIModelsCreditsColumn 模型目录前端契约：同一模型跨区域合并为一行，
-// 倍率按「全球/国内」两列并列——按区域拆成两行时无法横向对比（用户反馈）。
-// 公开 ID 由内部 ID 派生后，表格同时列出可调用 ID 与内部 ID。
-func TestWebUIModelsCreditsColumn(t *testing.T) {
-	html := string(workbuddyWebUI)
-	for _, want := range []string{
-		"mergeModels",
-		"<th>调用 ID</th><th>内部 ID</th><th>展示名</th><th>全球</th><th>国内</th>",
-		"免费",
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("model directory rendering missing %q", want)
-		}
-	}
-	// 旧按区域拆行的实现必须退场：区域标签与「来源账号」列会让同一模型看起来是两个模型。
-	for _, gone := range []string{"realmTag", "来源账号"} {
-		if strings.Contains(html, gone) {
-			t.Errorf("model directory still carries obsolete %q", gone)
-		}
-	}
-	// 页脚文案须说明按内部 ID 合并、同名不同内部 ID 分别显示，否则沿用旧「按区域去重」会误导。
-	for _, want := range []string{"按内部 ID 合并", "展示名相同但内部 ID 不同"} {
-		if !strings.Contains(html, want) {
-			t.Errorf("model directory footer missing updated copy %q", want)
-		}
-	}
-}

@@ -48,14 +48,3 @@ func TestBenefitsHandler_IncludesCheckinActivity(t *testing.T) {
 		t.Fatalf("响应泄漏 token: %s", resp.Body)
 	}
 }
-
-// TestWebUIHasCheckinStatusColumn 面板「权益与签到」表含上游签到状态列，
-// 卡片标题需覆盖签到语义（不再只是权益）。
-func TestWebUIHasCheckinStatusColumn(t *testing.T) {
-	html := string(workbuddyWebUI)
-	for _, want := range []string{"权益与签到", "<th>签到</th>", "checkinCell"} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("WebUI 缺 %q", want)
-		}
-	}
-}

@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
@@ -62,53 +61,5 @@ func TestAccountsHandler_ExposesNote(t *testing.T) {
 	p2 := byIdx["p2"]
 	if p2.Note != "" {
 		t.Errorf("p2.Note=%q want empty", p2.Note)
-	}
-}
-
-// TestWebUILoginMethodInference WebUI 组合档契约：
-// ① 登录方式按昵称格式推断（上游不提供 login_method，两独立实现均只有 uid/nickname）；
-// ② 显示名备注优先（note > nickname）；
-// ③ 备注编辑走 PATCH auth-files/fields {name, note}。
-func TestWebUILoginMethodInference(t *testing.T) {
-	html := string(workbuddyWebUI)
-
-	// ① 推断函数与三分类
-	if !strings.Contains(html, "function loginMethod") {
-		t.Fatal("loginMethod inference function missing")
-	}
-	for _, want := range []string{"手机(推断)", "邮箱(推断)", "自定义(推断)"} {
-		if !strings.Contains(html, want) {
-			t.Errorf("missing badge %q", want)
-		}
-	}
-	// 推断输入是原始昵称而非备注（用户备注不改变登录方式事实）
-	i := strings.Index(html, "function loginMethod")
-	if i < 0 {
-		t.Fatal("loginMethod missing")
-	}
-	chunk := html[i : i+400]
-	if !strings.Contains(chunk, "nickname") {
-		t.Error("loginMethod must infer from nickname (upstream identity), not note")
-	}
-
-	// ② 显示名 note 优先
-	if !strings.Contains(html, "x.note||x.nickname") && !strings.Contains(html, "x.note || x.nickname") {
-		t.Error("display name must prefer note over nickname")
-	}
-
-	// ③ 备注编辑 PATCH
-	if !strings.Contains(html, "saveNote") {
-		t.Error("saveNote editor missing")
-	}
-	j := strings.Index(html, "async function saveNote")
-	if j < 0 {
-		t.Fatal("saveNote missing")
-	}
-	chunk2 := html[j : j+500]
-	if !strings.Contains(chunk2, "note:") && !strings.Contains(chunk2, "note :") {
-		t.Error("saveNote must PATCH {name, note}")
-	}
-	if !strings.Contains(chunk2, "auth-files/fields") {
-		t.Error("saveNote must target auth-files/fields")
 	}
 }

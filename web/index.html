@@ -1,561 +1,391 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>WorkBuddy 管理面板</title>
-<style>
-:root{color-scheme:light dark;--bg:#f5f7fa;--panel:#fff;--ink:#182230;--muted:#5b6474;--line:#d9dee8;--accent:#1a73e8;--ok:#137333;--ok-bg:#e6f4ea;--err:#c5221f;--err-bg:#fce8e6;--warn:#b06000;--warn-bg:#fef7e0;--shadow:rgba(0,0,0,.12)}
-@media(prefers-color-scheme:dark){:root{--bg:#101318;--panel:#191e27;--ink:#f2f4f7;--muted:#98a2b3;--line:#303846;--ok:#4caf50;--ok-bg:#1b3a24;--err:#f44336;--err-bg:#3d1b1b;--warn:#ffb74d;--warn-bg:#3d2e0a;--shadow:rgba(0,0,0,.35)}}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
-.header{background:var(--accent);color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
-.header h1{font-size:18px;font-weight:600}
-.container{max-width:min(1440px,96vw);margin:0 auto;padding:16px}
-.card{background:var(--panel);border-radius:8px;box-shadow:0 1px 3px var(--shadow);padding:16px;margin-bottom:16px}
-.card h2{font-size:15px;font-weight:600;margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
-.auth-bar{display:flex;gap:8px;align-items:center;margin-bottom:16px}
-.auth-bar input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)}
-.auth-bar button,.btn{padding:8px 16px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
-.auth-bar button:hover,.btn:hover{opacity:.88}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn-secondary{background:var(--muted)}.btn-secondary:hover{opacity:.88}
-.btn-success{background:var(--ok);color:#fff}.btn-success:hover{opacity:.88}
-.btn-danger{background:var(--err);color:#fff}.btn-danger:hover{opacity:.88}
-.status{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:500}
-.status-ok{background:var(--ok-bg);color:var(--ok)}
-.status-error{background:var(--err-bg);color:var(--err)}
-.status-pending{background:var(--warn-bg);color:var(--warn)}
-.status-auth{background:var(--err-bg);color:var(--err)}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
-th{font-weight:700;background:var(--bg)}
-td{font-weight:500}
-code{font-size:12px;font-weight:500}
-.empty{text-align:center;padding:24px;color:var(--muted)}
-.toast{position:fixed;top:16px;right:16px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;z-index:999;display:none;box-shadow:0 2px 8px var(--shadow)}
-.toast-ok{background:var(--ok)}.toast-err{background:var(--err)}.toast-info{background:var(--accent)}
-.flex-between{display:flex;justify-content:space-between;align-items:center}
-.tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:2px}
-.tab{padding:8px 16px;border:none;border-radius:6px;background:var(--panel);color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px var(--shadow)}
-.tab.active{background:var(--accent);color:#fff}
-.card[data-view]{display:none}
-body[data-view="overview"] .card[data-view="overview"],
-body[data-view="logs"] .card[data-view="logs"],
-body[data-view="accounts"] .card[data-view="accounts"],
-body[data-view="tools"] .card[data-view="tools"]{display:block}
-@media(max-width:600px){.header{padding:12px 16px}.container{padding:12px}.card{padding:12px}.tab{padding:7px 12px;font-size:12px}}
-</style>
+<script src="./theme.js"></script>
+<link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<div class="header"><h1>WorkBuddy 管理面板</h1></div>
-<div class="container">
-<div class="auth-bar">
-  <input id="key" type="password" placeholder="输入管理密钥" autocomplete="off">
-  <button onclick="saveKey()">保存密钥</button>
-  <span id="keyStatus" style="font-size:12px;color:var(--muted)"></span>
-</div>
-<div class="tabs" id="tabs">
-  <button class="tab" data-view="overview">总览</button>
-  <button class="tab" data-view="logs">日志</button>
-  <button class="tab" data-view="accounts">账号</button>
-  <button class="tab" data-view="tools">工具</button>
-</div>
+<a class="skip-link" href="#main">跳到主要内容</a>
 
-<!-- 统计概览 -->
-<div class="card" data-view="overview">
-  <div class="flex-between"><h2>统计概览</h2><button class="btn" onclick="loadStats()">刷新</button></div>
-  <div id="statsBody"><div class="empty">点击"刷新"加载统计</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">本地观测聚合（账号/签到/流水），非上游权威；配额用量请用下方逐账号查询</div>
-</div>
-
-<!-- 账号列表 -->
-<div class="card" data-view="accounts">
-  <div class="flex-between"><h2>账号列表</h2><div style="display:flex;gap:8px;align-items:center"><select id="loginRealm" title="登录入口" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:var(--panel);color:var(--ink)"><option value="cn">国内版</option><option value="global">国际版</option></select><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('global')">国际优先</button><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('cn')">国内优先</button><button class="btn btn-secondary" data-preset onclick="applyPriorityPreset('clear')">全部清零</button><button class="btn" onclick="loadAccounts()">刷新</button><button class="btn" onclick="startLogin()" id="loginBtn">登录/添加账号</button></div></div>
-  <div id="accountsBody"><div class="empty">点击"刷新"加载数据</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">优先级：数字越大越优先（宿主选路取最高层，同层内配额加权）；改后即时生效，保活写回不会抹除。</div>
-</div>
-
-<!-- 模型目录 -->
-<div class="card" data-view="tools">
-  <div class="flex-between"><h2>模型目录</h2><div style="display:flex;gap:8px;align-items:center"><input id="modelFilter" placeholder="过滤模型…" oninput="filterModels()" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;background:var(--panel);color:var(--ink)"><button class="btn" onclick="loadModels()">刷新</button></div></div>
-  <div id="modelsBody"><div class="empty">点击"刷新"加载模型</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">可调用 ID 使用内部 ID 生成（workbuddy/&lt;内部 ID&gt;），按内部 ID 合并一行（全球/国内倍率并列）；展示名相同但内部 ID 不同的模型仍分别显示，— 表示该区域无此模型</div>
-</div>
-
-<!-- 任务时间线 -->
-<div class="card" data-view="logs">
-  <div class="flex-between"><h2>任务时间线</h2><button class="btn" onclick="loadTasks()">刷新</button></div>
-  <div id="tasksBody"><div class="empty">点击"刷新"加载任务记录</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">进程内环（200 条，重启即清），本地观测非上游权威</div>
-</div>
-
-<!-- 本地签到记录 -->
-<div class="card" data-view="logs">
-  <div class="flex-between"><h2>本地签到记录</h2><button class="btn" onclick="loadLastCheckin()">刷新</button></div>
-  <div id="checkinRecordBody"><div class="empty">点击"刷新"加载签到记录</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
-</div>
-
-<!-- Credits 流水 -->
-<div class="card" data-view="logs">
-  <div class="flex-between"><h2>Credits 流水</h2><button class="btn" onclick="loadCreditsLedger()">刷新</button></div>
-  <div id="creditsLedgerBody"><div class="empty">点击"刷新"加载流水</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">本地观测，非上游权威</div>
-</div>
-
-<!-- 配额刷新 -->
-<div class="card" data-view="accounts">
-  <div class="flex-between"><h2>配额信息</h2>
-    <div>
-      <select id="quotaAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
-        <option value="">全部账号</option>
-      </select>
-      <button class="btn" onclick="refreshQuota()">刷新配额</button>
-    </div>
+<header class="appbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">W</span>
+    <span class="brand-text"><strong>WorkBuddy</strong><small>管理面板</small></span>
   </div>
-  <div id="quotaBody"><div class="empty">选择账号或全部账号后点击"刷新配额"</div></div>
-</div>
-
-<!-- 手动签到 -->
-<div class="card" data-view="accounts">
-  <div class="flex-between"><h2>手动签到</h2>
-    <div>
-      <select id="checkinAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
-        <option value="">全部账号</option>
+  <div class="appbar-actions">
+    <span class="key-state" id="keyState" data-state="missing">未连接</span>
+    <label class="theme-field" for="themeSelect">
+      <span>主题</span>
+      <select id="themeSelect" aria-label="界面主题">
+        <option value="system">跟随系统</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
       </select>
-      <button class="btn btn-success" onclick="doCheckin()">签到</button>
-    </div>
+    </label>
   </div>
-  <div id="checkinBody"><div class="empty">选择账号后点击"签到"</div></div>
-</div>
+</header>
 
-<!-- 待领权益 -->
-<div class="card" data-view="accounts">
-  <div class="flex-between"><h2>权益与签到</h2>
-    <div>
-      <select id="benefitAuthIdx" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px;background:var(--panel);color:var(--ink)">
-        <option value="">全部账号</option>
-      </select>
-      <button class="btn btn-secondary" onclick="loadBenefits()">查询</button>
-      <button class="btn btn-success" onclick="claimBenefits()">领取可领项</button>
+<nav class="tasknav" id="tasknav" aria-label="任务导航">
+  <button class="tasknav-item" type="button" data-view="overview">概览</button>
+  <button class="tasknav-item" type="button" data-view="accounts">账号</button>
+  <button class="tasknav-item" type="button" data-view="quota">额度与签到</button>
+  <button class="tasknav-item" type="button" data-view="models">模型</button>
+  <button class="tasknav-item" type="button" data-view="records">记录</button>
+  <button class="tasknav-item" type="button" data-view="settings">设置</button>
+</nav>
+
+<main id="main" tabindex="-1">
+  <section class="view" data-view-panel="overview" aria-labelledby="title-overview">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">工作区</p>
+        <h1 id="title-overview">概览</h1>
+        <p class="page-sub">账号、签到与 Credits 的本地观测摘要；不是上游权威数据。</p>
+      </div>
+      <div class="head-actions">
+        <button class="button" type="button" id="overviewRefresh">刷新概览</button>
+      </div>
+    </header>
+    <div class="overview-line" id="overviewLine" aria-label="账号状态摘要">
+      <span>账号 <strong id="statAccounts">—</strong></span>
+      <span>今日已签 <strong id="statSigned">—</strong></span>
+      <span>最长连登 <strong id="statStreak">—</strong></span>
+      <span class="overview-sync" id="statSync">等待加载</span>
     </div>
+    <section class="section">
+      <div class="section-head">
+        <div><h2>运行摘要</h2><p>账号、签到与流水聚合口径</p></div>
+      </div>
+      <div class="panel-body" id="statsBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">正在加载统计…</div>
+      </div>
+    </section>
+    <section class="section">
+      <div class="section-head">
+        <div><h2>需要关注</h2><p>禁用、受限或近期失败的账号</p></div>
+        <button class="button small" type="button" data-goto-view="accounts">前往账号</button>
+      </div>
+      <div class="panel-body" id="attentionBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">等待加载</div>
+      </div>
+    </section>
+    <section class="section">
+      <div class="section-head">
+        <div><h2>最近 Credits 变动</h2><p>本地观测流水，最新在前</p></div>
+        <button class="button small" type="button" data-goto-view="records">查看全部</button>
+      </div>
+      <div class="panel-body" id="overviewLedger" aria-live="polite">
+        <div class="panel-state" data-state="idle">等待加载</div>
+      </div>
+    </section>
+  </section>
+
+  <section class="view" data-view-panel="accounts" hidden aria-labelledby="title-accounts">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">账号</p>
+        <h1 id="title-accounts">账号</h1>
+        <p class="page-sub">集中查看登录状态、区域、签到与优先级；备注和优先级在独立编辑面板修改。</p>
+      </div>
+      <div class="head-actions">
+        <button class="button" type="button" id="accountsRefresh">刷新账号</button>
+        <button class="button primary" type="button" id="loginOpen">登录 / 添加账号</button>
+      </div>
+    </header>
+    <div class="overview-line" id="accountsSummary" aria-label="账号状态摘要">
+      <span>全部 <strong id="accountsTotal">—</strong></span>
+      <span>可用 <strong id="accountsAvailable">—</strong></span>
+      <span>需处理 <strong id="accountsAttention">—</strong></span>
+      <span class="overview-sync" id="accountsSync">等待加载</span>
+    </div>
+    <section class="section">
+      <div class="section-head">
+        <div><h2>账号列表</h2><p>优先级数字越大越优先；宿主选路取最高层。</p></div>
+        <div class="section-actions">
+          <label class="search-field">
+            <span class="visually-hidden">查找账号</span>
+            <input id="accountFilter" type="search" placeholder="查找备注、昵称或 UID" autocomplete="off">
+          </label>
+          <details class="menu" id="presetMenu">
+            <summary class="button">优先级预设</summary>
+            <div class="menu-body">
+              <button type="button" data-preset="global">国际优先</button>
+              <button type="button" data-preset="cn">国内优先</button>
+              <button type="button" data-preset="clear">全部清零</button>
+              <p>批量改写全部账号优先级，执行前会要求确认。</p>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="panel-body" id="accountsState" aria-live="polite"></div>
+      <div class="account-list" id="accountsList"></div>
+      <p class="section-note">备注名只影响面板显示；删除账号会移除宿主凭证文件，需要重新登录才能恢复。</p>
+    </section>
+  </section>
+
+  <section class="view" data-view-panel="quota" hidden aria-labelledby="title-quota">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">额度</p>
+        <h1 id="title-quota">额度与签到</h1>
+        <p class="page-sub">按账号查询上游额度、执行签到并查看权益；查询与领取都由明确操作触发。</p>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>配额信息</h2><p>查询上游积分套餐；未查询前不展示数字。</p></div>
+        <div class="section-actions">
+          <label class="select-field"><span class="visually-hidden">配额账号</span>
+            <select id="quotaSelect" data-select-key="quota"><option value="">全部账号</option></select>
+          </label>
+          <button class="button" type="button" id="quotaRefresh">刷新配额</button>
+        </div>
+      </div>
+      <div class="panel-body" id="quotaBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">选择账号后点击「刷新配额」</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>手动签到</h2><p>国内版账号可签到；国际版没有签到体系。</p></div>
+        <div class="section-actions">
+          <label class="select-field"><span class="visually-hidden">签到账号</span>
+            <select id="checkinSelect" data-select-key="checkin"><option value="">全部账号</option></select>
+          </label>
+          <button class="button primary" type="button" id="checkinRun">签到</button>
+        </div>
+      </div>
+      <div class="panel-body" id="checkinBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">选择账号后点击「签到」</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>权益与签到状态</h2><p>只对窗口未过期且未领取的权益发起领取。</p></div>
+        <div class="section-actions">
+          <label class="select-field"><span class="visually-hidden">权益账号</span>
+            <select id="benefitSelect" data-select-key="benefit"><option value="">全部账号</option></select>
+          </label>
+          <button class="button" type="button" id="benefitQuery">查询</button>
+          <button class="button primary" type="button" id="benefitClaim">领取可领项</button>
+        </div>
+      </div>
+      <div class="panel-body" id="benefitBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">选择账号后点击「查询」</div>
+      </div>
+      <p class="section-note">「未开启」表示活动窗口未开放或已过期，不是请求错误。</p>
+    </section>
+  </section>
+
+  <section class="view" data-view-panel="models" hidden aria-labelledby="title-models">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">模型</p>
+        <h1 id="title-models">模型目录</h1>
+        <p class="page-sub">调用 ID 由内部 ID 生成（workbuddy/&lt;内部 ID&gt;）；同一内部 ID 合并全球与国内倍率。</p>
+      </div>
+      <div class="head-actions">
+        <button class="button" type="button" id="modelsRefresh">刷新目录</button>
+      </div>
+    </header>
+    <section class="section">
+      <div class="section-head">
+        <div><h2>可用模型</h2><p id="modelsCount">等待加载</p></div>
+        <div class="section-actions">
+          <label class="search-field">
+            <span class="visually-hidden">过滤模型</span>
+            <input id="modelFilter" type="search" placeholder="过滤模型…" autocomplete="off">
+          </label>
+        </div>
+      </div>
+      <div class="panel-body" id="modelsBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">正在加载模型…</div>
+      </div>
+      <p class="section-note">展示名相同但内部 ID 不同的模型仍分别显示；— 表示该区域没有此模型。</p>
+    </section>
+  </section>
+
+  <section class="view" data-view-panel="records" hidden aria-labelledby="title-records">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">记录</p>
+        <h1 id="title-records">记录</h1>
+        <p class="page-sub">进程内任务环、签到记录与 Credits 流水；重启或超出容量后会清空。</p>
+      </div>
+      <div class="head-actions">
+        <button class="button" type="button" id="recordsRefresh">刷新记录</button>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>任务时间线</h2><p>最近 200 条本地任务，重启即清</p></div>
+      </div>
+      <div class="panel-body" id="tasksBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">正在加载任务…</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>本地签到记录</h2><p>按账号保留最近一次观测</p></div>
+      </div>
+      <div class="panel-body" id="checkinRecordBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">正在加载签到记录…</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>Credits 流水</h2><p>余额快照、变化量与来源；同时展示模型成本观测</p></div>
+      </div>
+      <div class="panel-body" id="ledgerBody" aria-live="polite">
+        <div class="panel-state" data-state="idle">正在加载流水…</div>
+      </div>
+    </section>
+  </section>
+
+  <section class="view" data-view-panel="settings" hidden aria-labelledby="title-settings">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">设置</p>
+        <h1 id="title-settings">设置</h1>
+        <p class="page-sub">管理密钥只保存在当前浏览器；主题与面板状态同样保存在本地。</p>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>连接凭据</h2><p>沿用宿主管理密钥，保存后立即重新加载数据。</p></div>
+      </div>
+      <div class="settings-grid">
+        <label class="field">
+          <span>管理密钥</span>
+          <input id="keyInput" type="password" placeholder="输入管理密钥" autocomplete="off" spellcheck="false">
+          <small>存储键：wb_mgmt_key。不会写入 URL、日志或页面文本。</small>
+        </label>
+        <div class="field-actions">
+          <button class="button primary" type="button" id="keySave">保存密钥</button>
+          <button class="button" type="button" id="keyClear">清除密钥</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>界面主题</h2><p>跟随系统或固定浅色/深色；首屏加载前已应用。</p></div>
+      </div>
+      <div class="settings-grid">
+        <label class="field">
+          <span>主题</span>
+          <select id="themeSelectSettings" aria-label="设置页界面主题">
+            <option value="system">跟随系统</option>
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select>
+          <small>存储键：workbuddy.ui.theme。</small>
+        </label>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><h2>数据范围</h2><p>本面板只调用 WorkBuddy 插件管理端点与宿主 auth 字段端点。</p></div>
+      </div>
+      <div class="panel-body">
+        <ul class="note-list">
+          <li>账号、模型、配额、签到、权益与流水均来自真实管理接口；页面不内置示例账号。</li>
+          <li>删除账号、批量优先级和领取权益都需要明确点击；切换视图不会触发写入。</li>
+          <li>流水、任务与签到记录是本地观测，不是上游权威账本。</li>
+        </ul>
+      </div>
+    </section>
+  </section>
+</main>
+
+<div class="toast-root" id="toastRoot" aria-live="polite" aria-atomic="false"></div>
+
+<dialog class="sheet" id="accountDialog" aria-labelledby="accountDialogTitle">
+  <div class="sheet-inner">
+    <header class="sheet-head">
+      <div>
+        <h2 id="accountDialogTitle">编辑账号</h2>
+        <p id="accountDialogSub">备注与优先级保存到宿主 auth 文件字段。</p>
+      </div>
+      <button class="icon-button" type="button" id="accountClose" aria-label="关闭编辑面板" title="关闭">×</button>
+    </header>
+    <div class="sheet-body">
+      <div class="identity" id="editIdentity"></div>
+      <dl class="detail-list" id="editDetails"></dl>
+      <div class="form-grid">
+        <label class="field">
+          <span>备注名</span>
+          <input id="editNote" type="text" maxlength="80" autocomplete="off">
+          <small id="editNoteHint">只影响面板显示，不改变昵称或登录方式。</small>
+        </label>
+        <label class="field">
+          <span>优先级</span>
+          <input id="editPriority" type="number" step="1" inputmode="numeric">
+          <small>数字越大越优先；宿主选路取最高层。</small>
+        </label>
+      </div>
+      <div class="inline-alert" id="accountError" role="alert" hidden></div>
+      <div class="danger-zone">
+        <div>
+          <h3>删除账号</h3>
+          <p>移除宿主中的凭证文件；需要重新登录才能恢复。</p>
+        </div>
+        <button class="button danger" type="button" id="accountDelete">删除账号</button>
+      </div>
+    </div>
+    <footer class="sheet-foot">
+      <button class="button" type="button" id="accountCancel">取消</button>
+      <button class="button primary" type="button" id="accountSave">保存更改</button>
+    </footer>
   </div>
-  <div id="benefitsBody"><div class="empty">选择账号后点击"查询"</div></div>
-  <div style="font-size:12px;color:var(--muted);margin-top:8px">只对窗口未过期且未领取的权益发起领取，领取后自动复核上游到账状态。"未开启"= 活动窗口未开放或已过期，不是错误</div>
-</div>
-</div>
-<div id="toast" class="toast"></div>
-<script>
-const API='/v0/management/workbuddy';
-const AUTH_BASE='/v0/management';
-let savedKey=localStorage.getItem('wb_mgmt_key')||'';
-let pollTimer=null;
-if(savedKey)document.getElementById('key').value=savedKey;
-function getKey(){return savedKey}
-function saveKey(){savedKey=document.getElementById('key').value.trim();localStorage.setItem('wb_mgmt_key',savedKey);toast(savedKey?'密钥已保存':'密钥已清除','info');if(savedKey)bootstrap()}
-function errorBody(status,text){
-  try{const j=JSON.parse(text);if(j){if(j.error)return String(j.error);if(j.message)return String(j.message);if(j.msg)return String(j.msg)}}catch(e){}
-  const t=(text||'').trim();return t?t.slice(0,200):('HTTP '+status)
-}
-async function api(path,body){
-  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
-  const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
-  const opt=body?{method:'POST',headers:h,body:JSON.stringify(body)}:{headers:h};
-  try{const r=await fetch(API+path,opt);const t=await r.text();
-    if(r.status===401){toast('管理密钥无效，请检查','err');return null}
-    if(!r.ok){toast('请求失败: '+errorBody(r.status,t),'err');return null}
-    return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
-}
-async function authApi(path,body){
-  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
-  const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
-  const opt=body?{method:'POST',headers:h,body:JSON.stringify(body)}:{headers:h};
-  try{const r=await fetch(AUTH_BASE+path,opt);const t=await r.text();
-    if(r.status===401){toast('管理密钥无效，请检查','err');return null}
-    if(!r.ok){toast('请求失败: '+errorBody(r.status,t),'err');return null}
-    return JSON.parse(t)}catch(e){toast('网络错误: '+e.message,'err');return null}
-}
-async function authPatch(path,body){
-  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
-  const h={'Authorization':'Bearer '+k,'Content-Type':'application/json'};
-  try{const r=await fetch(AUTH_BASE+path,{method:'PATCH',headers:h,body:JSON.stringify(body)});const t=await r.text();
-    if(r.status===401){toast('管理密钥无效或过期','err');return null}
-    if(!r.ok){let msg='请求失败: '+r.status;try{const j=JSON.parse(t);if(j&&j.error)msg=j.error}catch(e){}toast(msg,'err');return null}
-    return t?JSON.parse(t):{}}catch(e){toast('请求失败: '+e.message,'err');return null}
-}
-async function authDelete(name){
-  const k=getKey();if(!k){toast('请先输入管理密钥','err');return null}
-  try{const r=await fetch(AUTH_BASE+'/auth-files?name='+encodeURIComponent(name),{method:'DELETE',headers:{'Authorization':'Bearer '+k}});const t=await r.text();
-    if(r.status===401){toast('管理密钥无效，请检查','err');return null}
-    if(!r.ok){toast('删除失败: '+errorBody(r.status,t),'err');return null}
-    return true}catch(e){toast('网络错误: '+e.message,'err');return null}
-}
-// 删除走宿主自带 /v0/management/auth-files（插件 SDK 只暴露 auth.get/list/save，没有 delete），
-// 用同一个管理密钥直连宿主即可。删除成功后必须重载账号表，否则界面仍显示已删账号。
-async function deleteAccount(btn){
-  const file=btn.getAttribute('data-file');
-  if(!file){toast('该账号无宿主文件名，无法删除','err');return}
-  if(!window.confirm('删除账号 '+(btn.getAttribute('data-tail')||file)+'？\n\n会移除宿主中的凭证文件，需重新登录才能恢复。'))return;
-  btn.disabled=true;
-  if(await authDelete(file)){toast('账号已删除','ok');loadAccounts()}else{btn.disabled=false}
-}
-async function savePriority(btn){
-  const file=btn.getAttribute('data-file');
-  if(!file){toast('该账号无宿主文件名，无法定位','err');return}
-  const inp=btn.parentNode.querySelector('input[data-pri]');
-  const v=parseInt(inp.value,10);
-  if(isNaN(v)){toast('优先级需为整数','err');return}
-  const d=await authPatch('/auth-files/fields',{name:file,priority:v});
-  if(d!==null){toast('优先级已保存','ok');loadAccounts()}
-}
-async function saveNote(btn){
-  const file=btn.getAttribute('data-file');
-  if(!file){toast('该账号无宿主文件名，无法定位','err');return}
-  const inp=btn.parentNode.querySelector('input[data-note]');
-  const v=(inp.value||'').trim();
-  const d=await authPatch('/auth-files/fields',{name:file,note:v});
-  if(d!==null){toast('备注已保存','ok');loadAccounts()}
-}
-function loginMethod(nickname){
-  const n=(nickname||'').trim();
-  if(!n)return '自定义(推断)';
-  if(/^\d{11}$/.test(n))return '手机(推断)';
-  if(n.indexOf('@')>-1)return '邮箱(推断)';
-  return '自定义(推断)';
-}
-let presetBusy=false;
-async function applyPriorityPreset(mode){
-  if(presetBusy){toast('优先级预设进行中，请稍候','info');return}
-  const d=await api('/accounts');if(!d)return;
-  const a=(d.accounts||[]).filter(x=>x.file);
-  presetBusy=true;
-  const btns=document.querySelectorAll('[data-preset]');
-  btns.forEach(b=>{b.disabled=true});
-  let ok=0;
-  try{
-    for(let i=0;i<a.length;i++){
-      const x=a[i];
-      let pri=0;
-      if(mode==='global')pri=x.realm==='global'?10:0;
-      else if(mode==='cn')pri=x.realm==='cn'?10:0;
-      toast('正在写入优先级 '+(i+1)+'/'+a.length+'…','info');
-      const r=await authPatch('/auth-files/fields',{name:x.file,priority:pri});
-      if(r!==null)ok++;
-    }
-    toast('已更新 '+ok+'/'+a.length+' 个账号','ok');
-  }finally{
-    presetBusy=false;
-    btns.forEach(b=>{b.disabled=false});
-    loadAccounts();
-  }
-}
-function toast(msg,type){
-  const t=document.getElementById('toast');t.textContent=msg;
-  t.className='toast toast-'+(type||'info');t.style.display='block';
-  setTimeout(()=>{t.style.display='none'},3000)
-}
-function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'):''}
+</dialog>
 
-// --- 登录/添加账号流程 ---
-async function startLogin(){
-  if(pollTimer){clearInterval(pollTimer);pollTimer=null}
-  const btn=document.getElementById('loginBtn');btn.disabled=true;
-  try{
-    const sel=document.getElementById('loginRealm');
-    const realm=(sel&&sel.value==='global')?'global':'cn';
-    const body=await authApi('/workbuddy-auth-url?realm='+encodeURIComponent(realm));
-    if(!body||!body.url){toast(body&&body.error?'启动登录失败: '+body.error:'无法获取授权链接','err');btn.disabled=false;return}
-    window.open(body.url,'_blank','noopener');
-    toast(realm==='global'?'等待 WorkBuddy 国际版授权…':'等待 WorkBuddy 国内版授权…','info');
-    const state=body.state;
-    pollTimer=setInterval(async()=>{
-      try{
-        const res=await authApi('/get-auth-status?state='+encodeURIComponent(state));
-        if(res&&res.status==='ok'){
-          clearInterval(pollTimer);pollTimer=null;
-          toast('登录成功','ok');loadAccounts();loadModels();btn.disabled=false;
-        }else if(res&&res.status==='error'){
-          clearInterval(pollTimer);pollTimer=null;
-          toast('登录失败: '+(res.error||'未知错误'),'err');btn.disabled=false;
-        }
-      }catch(e){
-        clearInterval(pollTimer);pollTimer=null;
-        toast('轮询出错: '+e.message,'err');btn.disabled=false;
-      }
-    },2500);
-  }catch(e){
-    toast('登录请求失败: '+e.message,'err');btn.disabled=false;
-  }
-}
+<dialog class="sheet" id="loginDialog" aria-labelledby="loginDialogTitle">
+  <div class="sheet-inner">
+    <header class="sheet-head">
+      <div>
+        <h2 id="loginDialogTitle">登录 / 添加账号</h2>
+        <p>打开 WorkBuddy 授权页，完成后自动回到这里。</p>
+      </div>
+      <button class="icon-button" type="button" id="loginClose" aria-label="关闭登录面板" title="关闭">×</button>
+    </header>
+    <div class="sheet-body">
+      <label class="field">
+        <span>登录区域</span>
+        <select id="loginRealm">
+          <option value="cn">国内版</option>
+          <option value="global">国际版</option>
+        </select>
+        <small>授权链接由宿主生成；本面板只接受 http/https 地址。</small>
+      </label>
+      <div class="login-progress" id="loginProgress" hidden>
+        <p id="loginMessage">等待授权…</p>
+        <p class="login-countdown">剩余 <span id="loginCountdown">05:00</span></p>
+        <a id="loginManual" hidden target="_blank" rel="noopener">手动打开授权页</a>
+      </div>
+      <div class="inline-alert" id="loginError" role="alert" hidden></div>
+      <p class="sheet-note">轮询最多持续 5 分钟；关闭面板或取消会立即停止。登录成功后会刷新账号与模型。</p>
+    </div>
+    <footer class="sheet-foot">
+      <button class="button" type="button" id="loginCloseFoot">取消</button>
+      <button class="button danger-ghost" type="button" id="loginCancel" hidden>取消等待</button>
+      <button class="button primary" type="button" id="loginStart">开始授权</button>
+    </footer>
+  </div>
+</dialog>
 
-async function loadAccounts(){
-  const d=await api('/accounts');if(!d)return;
-  const a=d.accounts||[];
-  if(!a.length){document.getElementById('accountsBody').innerHTML='<div class="empty">无 workbuddy 账号，点击「登录/添加账号」开始</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>昵称</th><th>登录方式</th><th>区域</th><th>过期时间</th><th>上次签到</th><th>索引</th><th>优先级</th><th>备注</th><th>操作</th></tr>';
-  a.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail)+'</td><td>'+esc(x.note||x.nickname)+(x.disabled?' <span style="background:#c0392b;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">禁用</span>':(x.dead_count?' <span style="background:#e67e22;color:#fff;padding:1px 5px;border-radius:8px;font-size:11px">12153×'+x.dead_count+'</span>':''))+'</td><td>'+esc(loginMethod(x.nickname))+'</td><td>'+esc(x.realm)+'</td><td>'+(x.expires_at||'-')+'</td><td>'+(x.realm==='global'?'—':(x.last_checkin||'-'))+'</td><td><code>'+esc(x.auth_index)+'</code></td><td><input type="number" data-pri value="'+(x.priority||0)+'" style="width:48px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="savePriority(this)">存</button></td><td><input type="text" data-note value="'+esc(x.note||'')+'" placeholder="备注名" style="width:110px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);font-size:12px"> <button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" onclick="saveNote(this)">存</button></td><td><button class="btn btn-secondary" style="padding:3px 8px;font-size:12px" data-file="'+esc(x.file||'')+'" data-tail="'+esc(x.uid_tail||'')+'" onclick="deleteAccount(this)">删除</button></td></tr>';
-  });
-  h+='</table>';document.getElementById('accountsBody').innerHTML=h;
-  populateSelects(a);
-}
-function populateSelects(accounts){
-  ['quotaAuthIdx','checkinAuthIdx','benefitAuthIdx'].forEach(id=>{
-    const sel=document.getElementById(id);sel.innerHTML='<option value="">全部账号</option>';
-    accounts.forEach(a=>{
-      const label=(a.uid_tail||'?')+' ('+a.nickname+')';
-      sel.innerHTML+='<option value="'+esc(a.auth_index)+'">'+label+'</option>';
-    });
-  });
-}
-
-let cachedModels=[];
-function filterModels(){
-  const q=(document.getElementById('modelFilter').value||'').toLowerCase();
-  const m=q?cachedModels.filter(x=>(x.id||'').toLowerCase().includes(q)||(x.internal_id||'').toLowerCase().includes(q)||(x.display_name||'').toLowerCase().includes(q)||(x.realm||'').toLowerCase().includes(q)):cachedModels;
-  renderModels(m);
-}
-function creditsCell(c){
-  if(!c)return '<span style="color:var(--muted)">—</span>';
-  const n=parseFloat(String(c).replace(/^x/i,''));
-  const free=(n===0)?'<span style="color:#1a7f37;font-weight:600">免费</span> ':'';
-  return free+'<code>'+esc(c)+'</code>';
-}
-function mergeModels(rows){
-  const byId=new Map();
-  rows.forEach(x=>{
-    const key=x.internal_id||'';
-    if(!byId.has(key))byId.set(key,{callable_id:key?'workbuddy/'+key:'',internal_id:key,display_name:x.display_name||'',global:'',cn:''});
-    const e=byId.get(key);
-    if(!e.display_name)e.display_name=x.display_name||'';
-    if(x.realm==='cn')e.cn=x.credits||'';else e.global=x.credits||'';
-  });
-  return Array.from(byId.values()).sort((a,b)=>a.internal_id.localeCompare(b.internal_id));
-}
-function renderModels(m){
-  const rows=mergeModels(m);
-  if(!rows.length){document.getElementById('modelsBody').innerHTML='<div class="empty">无匹配模型</div>';return}
-  let h='<table><tr><th>调用 ID</th><th>内部 ID</th><th>展示名</th><th>全球</th><th>国内</th></tr>';
-  rows.forEach(x=>{
-    h+='<tr><td><code>'+esc(x.callable_id)+'</code></td><td><code>'+esc(x.internal_id)+'</code></td><td>'+esc(x.display_name)+'</td><td>'+creditsCell(x.global)+'</td><td>'+creditsCell(x.cn)+'</td></tr>';
-  });
-  h+='</table>';document.getElementById('modelsBody').innerHTML=h;
-}
-async function loadModels(){
-  const d=await api('/models');if(!d)return;
-  cachedModels=d.models||[];
-  filterModels();
-}
-
-async function loadStats(){
-  const rs=await Promise.all([api('/accounts'),api('/credits-ledger'),api('/last-checkin'),api('/streak',{})]);
-  const ad=rs[0];if(!ad)return;
-  const led=(rs[1]&&rs[1].entries)||[];
-  const recs=(rs[2]&&rs[2].last_checkins)||[];
-  const stk=(rs[3]&&rs[3].streaks)||[];
-  const a=ad.accounts||[];
-  const cnAcc=a.filter(x=>x.realm==='cn');
-  const today=new Date();
-  const todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  const signed=cnAcc.filter(x=>(x.last_checkin||'').slice(0,10)===todayStr).length;
-  const bySource={};
-  led.forEach(e=>{const s=e.source||'?';bySource[s]=(bySource[s]||0)+1});
-  const srcParts=Object.keys(bySource).sort().map(s=>esc(s)+' '+bySource[s]).join(' / ');
-  const stOk=stk.filter(x=>!x.error);
-  const maxDays=stOk.length?Math.max.apply(null,stOk.map(x=>x.days||0)):0;
-  const avail=[];
-  stOk.forEach(x=>{['7d','14d','28d'].forEach(t=>{if(x['tier_'+t]==='available'&&avail.indexOf(t)<0)avail.push(t)})});
-  let h='<table><tr><th>指标</th><th>值</th></tr>';
-  h+='<tr><td>账号总数</td><td><strong>'+a.length+'</strong>（CN '+cnAcc.length+' / Global '+(a.length-cnAcc.length)+'）</td></tr>';
-  h+='<tr><td>今日已签到(CN)</td><td><strong>'+signed+'</strong> / '+cnAcc.length+'</td></tr>';
-  h+='<tr><td>Credits 流水</td><td>'+led.length+' 条'+(srcParts?'（'+srcParts+'）':'')+'</td></tr>';
-  h+='<tr><td>签到记录</td><td>'+recs.length+' 条</td></tr>';
-  h+='<tr><td>连登</td><td><strong>'+maxDays+'</strong> 天（最长，'+stOk.length+'/'+stk.length+' 号可读）'+(avail.length?' · 可领：<strong>'+esc(avail.join('/'))+'</strong> 档':'')+'</td></tr>';
-  h+='</table>';document.getElementById('statsBody').innerHTML=h;
-}
-
-async function refreshQuota(){
-  const idx=document.getElementById('quotaAuthIdx').value;
-  const btn=document.querySelector('button[onclick="refreshQuota()"]');
-  if(btn){if(btn.disabled)return;btn.disabled=true}
-  if(!idx){
-    // 全部账号：串行逐号查询（与预设同款串行防并发），渲染汇总表
-    const ad=await api('/accounts');if(!ad){if(btn)btn.disabled=false;return}
-    const a=(ad.accounts||[]);
-    if(!a.length){toast('无账号可查询','err');if(btn)btn.disabled=false;return}
-    let h='<table><tr><th>UID 尾号</th><th>区域</th><th>剩余</th><th>已用</th><th>总量</th><th>套餐</th></tr>';
-    let ok=0;
-    for(let i=0;i<a.length;i++){
-      toast('正在查询配额 '+(i+1)+'/'+a.length+'…','info');
-      const d=await api('/quota',{auth_index:a[i].auth_index});
-      if(d&&!d.error){
-        ok++;
-        h+='<tr><td>'+esc(a[i].uid_tail||'-')+'</td><td>'+esc(a[i].realm)+'</td><td><strong>'+d.remain.toLocaleString()+'</strong></td><td>'+d.used.toLocaleString()+'</td><td>'+d.size.toLocaleString()+'</td><td>'+d.packages+'</td></tr>';
-      }else{
-        h+='<tr><td>'+esc(a[i].uid_tail||'-')+'</td><td>'+esc(a[i].realm)+'</td><td colspan="4" style="color:var(--err)">'+esc(d&&d.error?d.error:'查询失败')+'</td></tr>';
-      }
-    }
-    h+='</table>';
-    document.getElementById('quotaBody').innerHTML=h;
-    toast('配额查询完成 '+ok+'/'+a.length,'ok');
-    if(btn)btn.disabled=false;
-    return;
-  }
-  toast('正在查询配额...','info');
-  const d=await api('/quota',{auth_index:idx});
-  if(btn)btn.disabled=false;
-  if(!d)return;
-  if(d.error){document.getElementById('quotaBody').innerHTML='<div class="status status-error">查询失败: '+esc(d.error)+'</div>';return}
-  let h='<table><tr><th>指标</th><th>值</th></tr>';
-  h+='<tr><td>剩余额度</td><td><strong>'+d.remain.toLocaleString()+'</strong> 积分</td></tr>';
-  h+='<tr><td>已用额度</td><td>'+d.used.toLocaleString()+' 积分</td></tr>';
-  h+='<tr><td>总量</td><td>'+d.size.toLocaleString()+' 积分</td></tr>';
-  h+='<tr><td>套餐数</td><td>'+d.packages+'</td></tr>';
-  if(d.size>0){const pct=(d.remain/d.size*100).toFixed(1);
-    h+='<tr><td>剩余额度比例</td><td><div style="background:var(--line);border-radius:4px;height:8px;width:200px;display:inline-block;vertical-align:middle;margin-right:8px"><div style="background:'+(pct>30?'var(--ok)':'var(--err)')+';height:8px;border-radius:4px;width:'+Math.min(pct,100)+'%"></div></div> '+pct+'%</td></tr>';}
-  h+='</table>';document.getElementById('quotaBody').innerHTML=h;
-}
-
-async function doCheckin(){
-  const idx=document.getElementById('checkinAuthIdx').value;
-  const btn=document.querySelector('button[onclick="doCheckin()"]');
-  if(btn){if(btn.disabled)return;btn.disabled=true}
-  toast('正在签到...','info');
-  const body=idx?{auth_index:idx}:{};
-  const d=await api('/checkin',body);
-  if(btn)btn.disabled=false;
-  if(!d)return;
-  const results=d.results||[];
-  if(!results.length){document.getElementById('checkinBody').innerHTML='<div class="empty">无账号可签到</div>';return}
-  let h='<table><tr><th>UID</th><th>状态</th><th>信息</th><th>余额</th></tr>';
-  results.forEach(r=>{
-    const cls=r.status==='OK'||r.status==='ALREADY'?'status-ok':r.status==='AUTH_INVALID'?'status-auth':'status-error';
-    h+='<tr><td>'+esc(r.uid||'-')+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td><td>'+esc(r.message)+'</td><td>'+(r.remain!=null?r.remain.toLocaleString()+' 积分':'-')+'</td></tr>';
-  });
-  h+='</table>';document.getElementById('checkinBody').innerHTML=h;
-}
-
-let benefitLoaded=false;
-async function loadBenefits(){
-  const idx=document.getElementById('benefitAuthIdx').value;
-  toast('正在查询权益...','info');
-  const d=await api('/benefits',idx?{auth_index:idx}:{});
-  if(!d)return;
-  const rows=d.benefits||[];
-  if(!rows.length){document.getElementById('benefitsBody').innerHTML='<div class="empty">无账号可查询</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>区域</th><th>签到</th><th>赠送积分</th><th>补偿积分</th><th>错误</th></tr>';
-  rows.forEach(x=>{
-    h+='<tr><td>'+esc(x.uid_tail||x.auth_index)+'</td><td>'+esc(x.realm||'-')+'</td><td>'+checkinCell(x.checkin)+'</td><td>'+benefitCell(x.gift)+'</td><td>'+benefitCell(x.compensation)+'</td><td style="color:var(--err)">'+esc(x.error||'-')+'</td></tr>';
-  });
-  document.getElementById('benefitsBody').innerHTML=h+'</table>';
-}
-function checkinCell(c){
-  if(!c)return '<span style="color:var(--muted)">—</span>';
-  if(!c.active)return '<span class="status status-error">未开启</span>';
-  const tag=c.today_checked_in?'今日已签':'今日未签';
-  const cls=c.today_checked_in?'status-ok':'status-pending';
-  return '<span class="status '+cls+'">'+tag+'</span> 连签 '+(c.streak_days||0)+' 天'+(c.total_credits?'<br><span style="font-size:11px;color:var(--muted)">累计 '+c.total_credits.toLocaleString()+' 积分</span>':'');
-}
-function benefitCell(b){
-  if(!b)return '<span style="color:var(--muted)">—</span>';
-  const tag=b.claimed?'已领取':(b.active?'可领取':'未开启');
-  const cls=b.claimed?'status-ok':(b.active?'status-pending':'status-error');
-  return '<span class="status '+cls+'">'+tag+'</span>'+(b.credit_num?' '+b.credit_num.toLocaleString()+' 积分':'')+(b.end_time?'<br><span style="font-size:11px;color:var(--muted)">截止 '+esc(b.end_time)+'</span>':'');
-}
-async function claimBenefits(){
-  const idx=document.getElementById('benefitAuthIdx').value;
-  const btn=document.querySelector('button[onclick="claimBenefits()"]');
-  if(btn){if(btn.disabled)return;btn.disabled=true}
-  toast('正在领取可领权益...','info');
-  const d=await api('/benefits/claim',idx?{auth_index:idx}:{});
-  if(btn)btn.disabled=false;
-  if(!d)return;
-  const rs=d.results||[];
-  if(!rs.length){document.getElementById('benefitsBody').innerHTML='<div class="empty">无账号可领取</div>';return}
-  let h='<table><tr><th>UID 尾号</th><th>区域</th><th>权益</th><th>状态</th><th>信息</th></tr>';
-  rs.forEach(r=>{
-    const cls=r.status==='OK'?'status-ok':(r.status==='FAIL'?'status-error':'status-pending');
-    h+='<tr><td>'+esc(r.uid_tail||r.auth_index)+'</td><td>'+esc(r.realm||'-')+'</td><td>'+(r.kind==='compensation'?'补偿':'赠送')+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td><td>'+esc(r.message||'-')+'</td></tr>';
-  });
-  document.getElementById('benefitsBody').innerHTML=h+'</table>';
-}
-
-async function loadTasks(){
-  const d=await api('/tasks');if(!d)return;
-  const ts=d.tasks||[];
-  if(!ts.length){document.getElementById('tasksBody').innerHTML='<div class="empty">暂无任务记录</div>';return}
-  let h='<table><tr><th>时间</th><th>任务</th><th>账号</th><th>状态</th><th>信息</th></tr>';
-  ts.slice().reverse().forEach(x=>{
-    const ok=!!x.ok;
-    const cls=ok?'status-ok':'status-error';
-    const label=ok?(x.err==='already'?'ALREADY':'OK'):'FAIL';
-    h+='<tr><td>'+esc(String(x.ts||'').replace('T',' ').slice(0,19))+'</td><td>'+esc(x.task)+'</td><td><code>'+esc(x.auth_id)+'</code></td><td><span class="status '+cls+'">'+label+'</span></td><td>'+esc(x.err||'-')+'</td></tr>';
-  });
-  h+='</table>';document.getElementById('tasksBody').innerHTML=h;
-}
-
-async function loadLastCheckin(){
-  const d=await api('/last-checkin');if(!d)return;
-  const records=d.last_checkins||[];
-  if(!records.length){document.getElementById('checkinRecordBody').innerHTML='<div class="empty">暂无签到记录</div>';return}
-  let h='<table><tr><th>账号</th><th>时间</th><th>来源</th><th>状态</th></tr>';
-  records.forEach(r=>{
-    const cls=r.status==='OK'||r.status==='TICKER'?'status-ok':'status-pending';
-    h+='<tr><td>'+esc(r.auth_id)+'</td><td>'+esc(r.ts)+'</td><td>'+esc(r.source)+'</td><td><span class="status '+cls+'">'+esc(r.status)+'</span></td></tr>';
-  });
-  h+='</table>';document.getElementById('checkinRecordBody').innerHTML=h;
-}
-
-async function loadCreditsLedger(){
-  const rs=await Promise.all([api('/credits-ledger'),api('/accounts')]);
-  const d=rs[0];if(!d)return;
-  const led=(rs[1]&&rs[1].accounts)||[];
-  const shortMap={};led.forEach(a=>{if(a.auth_index)shortMap[a.auth_index]=a.uid_tail||a.nickname||''});
-  function authShort(id){return shortMap[id]||(id?String(id).slice(0,8):'-')}
-  const entries=d.entries||[];
-  const mc=d.model_costs||{};
-  let h='';
-  const rows=[];
-  Object.keys(mc).forEach(a=>{Object.keys(mc[a]).forEach(m=>{rows.push([a,m,mc[a][m]])})});
-  if(rows.length){
-    h+='<div style="margin-bottom:12px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">模型成本（usage.credit 消耗观测，/千 token，EMA）</div><table><tr><th>账号</th><th>模型</th><th>单价</th><th>样本</th><th>最近</th></tr>';
-    rows.forEach(r=>{
-      h+='<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td>'+r[2].cost_per_1k.toFixed(4)+'</td><td>'+r[2].samples+'</td><td>'+esc(String(r[2].last_seen||'').replace('T',' ').slice(0,19))+'</td></tr>';
-    });
-    h+='</table></div>';
-  }
-  if(entries.length){
-    h+='<table><tr><th>时间</th><th>账号</th><th>余额</th><th>变化</th><th>来源</th></tr>';
-    entries.slice().reverse().forEach(e=>{
-      const dv=e.delta||0;
-      const dcls=dv>0?'var(--ok)':dv<0?'var(--err)':'var(--muted)';
-      h+='<tr><td>'+esc(String(e.ts||'').replace('T',' ').slice(0,19))+'</td><td title="'+esc(e.auth_id)+'">'+esc(authShort(e.auth_id))+'</td><td>'+e.balance.toLocaleString()+'</td><td style="color:'+dcls+';font-weight:'+(dv?600:400)+'">'+(dv>0?'+':'')+dv+'</td><td>'+esc(e.source)+'</td></tr>';
-    });
-    h+='</table>';
-  }else if(!rows.length){h='<div class="empty">暂无流水记录</div>'}
-  document.getElementById('creditsLedgerBody').innerHTML=h;
-}
-
-// --- tab 路由（hash 驱动，单文件内 4 视图） ---
-const VIEWS=['overview','logs','accounts','tools'];
-function setView(v){
-  if(VIEWS.indexOf(v)<0)v='overview';
-  document.body.dataset.view=v;
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  if(location.hash.slice(1)!==v){history.replaceState(null,'','#'+v)}
-  if(v==='logs'&&savedKey){loadTasks();loadLastCheckin();loadCreditsLedger()}
-  if(v==='accounts'&&savedKey&&!benefitLoaded){benefitLoaded=true;loadBenefits()}
-}
-document.getElementById('tabs').addEventListener('click',e=>{
-  const b=e.target.closest('.tab');if(!b)return;setView(b.dataset.view)
-});
-window.addEventListener('hashchange',()=>setView(location.hash.slice(1)));
-
-function bootstrap(){loadStats();loadAccounts();loadModels()}
-// 初始加载：路由 + 统计、账号与模型
-setView(location.hash.slice(1)||'overview');
-if(savedKey)bootstrap()
-</script>
+<script src="./app.js"></script>
 </body>
 </html>

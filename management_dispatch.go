@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
@@ -10,6 +11,21 @@ import (
 
 // managementRegister 返回管理路由声明（/workbuddy/* 前缀 + checkin POST）。
 func managementRegister() map[string]any {
+	resources := []map[string]string{{
+		"path":        "/index.html",
+		"menu":        "WorkBuddy",
+		"description": "WorkBuddy 管理面板",
+	}}
+	names := make([]string, 0, len(workbuddyWebAssets)-1)
+	for name := range workbuddyWebAssets {
+		if name != "index.html" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		resources = append(resources, map[string]string{"path": webResourcePrefix + name})
+	}
 	return map[string]any{
 		"routes": []map[string]string{
 			{"method": http.MethodGet, "path": "/workbuddy/accounts"},
@@ -23,9 +39,7 @@ func managementRegister() map[string]any {
 			{"method": http.MethodPost, "path": "/workbuddy/benefits/claim"},
 			{"method": http.MethodGet, "path": "/workbuddy/tasks"},
 		},
-		"resources": []map[string]string{
-			{"path": "/index.html", "menu": "WorkBuddy", "description": "WorkBuddy 管理面板"},
-		},
+		"resources": resources,
 	}
 }
 
@@ -34,6 +48,16 @@ func managementHandle(raw []byte) ([]byte, error) {
 	var request pluginapi.ManagementRequest
 	if err := json.Unmarshal(raw, &request); err != nil {
 		return errorEnvelopeStatus("invalid_request", "invalid management request", 400), nil
+	}
+	if asset, ok := webAssetFor(strings.TrimSpace(request.Path)); ok && request.Method == http.MethodGet {
+		return okEnvelope(pluginapi.ManagementResponse{
+			StatusCode: http.StatusOK,
+			Headers: http.Header{
+				"Content-Type":  {asset.contentType},
+				"Cache-Control": {"no-store"},
+			},
+			Body: asset.body,
+		})
 	}
 	path := managementPath(request.Path)
 	switch {
@@ -97,15 +121,36 @@ func managementHandle(raw []byte) ([]byte, error) {
 			return errorEnvelopeStatus("internal_error", err.Error(), 500), nil
 		}
 		return managementResponseEnvelope(resp)
-	case path == "/index.html" || strings.HasSuffix(path, "/workbuddy/index.html"):
-		return okEnvelope(pluginapi.ManagementResponse{
-			StatusCode: http.StatusOK,
-			Headers:    http.Header{"Content-Type": {"text/html; charset=utf-8"}},
-			Body:       workbuddyWebUI,
-		})
 	default:
+		if asset, ok := webAssetFor(path); ok && request.Method == http.MethodGet {
+			return okEnvelope(pluginapi.ManagementResponse{
+				StatusCode: http.StatusOK,
+				Headers: http.Header{
+					"Content-Type":  {asset.contentType},
+					"Cache-Control": {"no-store"},
+				},
+				Body: asset.body,
+			})
+		}
 		return errorEnvelopeStatus("not_found", "management route not found: "+path, 404), nil
 	}
+}
+
+const webResourcePrefix = "/v0/resource/plugins/" + pluginID + "/"
+
+// webAssetFor 只接受白名单内的精确资源名；未知、嵌套、.. 与外来前缀一律 404。
+func webAssetFor(requestPath string) (webAsset, bool) {
+	var name string
+	switch {
+	case requestPath == "/index.html":
+		name = "index.html"
+	case strings.HasPrefix(requestPath, webResourcePrefix):
+		name = strings.TrimPrefix(requestPath, webResourcePrefix)
+	default:
+		return webAsset{}, false
+	}
+	asset, ok := workbuddyWebAssets[name]
+	return asset, ok
 }
 
 // managementResponseEnvelope 将 ManagementResponse 包装为 RPC Envelope。

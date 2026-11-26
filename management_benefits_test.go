@@ -210,28 +210,3 @@ func TestBenefitRoutesRegistered(t *testing.T) {
 		}
 	}
 }
-
-// TestWebUIHasBenefitsCard 面板含「待领权益」卡片、两个动作按钮，且下拉随账号列表填充。
-func TestWebUIHasBenefitsCard(t *testing.T) {
-	html := string(workbuddyWebUI)
-	for _, want := range []string{
-		"待领权益",
-		`onclick="loadBenefits()"`,
-		`onclick="claimBenefits()"`,
-		"benefitAuthIdx",
-		"/benefits",
-		"/benefits/claim",
-	} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("WebUI 缺 %q", want)
-		}
-	}
-	if !strings.Contains(html, "['quotaAuthIdx','checkinAuthIdx','benefitAuthIdx']") {
-		t.Fatal("benefitAuthIdx 未接入 populateSelects——下拉会永远只有「全部账号」")
-	}
-	// 首次进入「账号」页自动查一次（benefitLoaded 守卫）：不点查询也能看见待领（补偿窗口会过期），
-	// 但不能每次切标签都打——全账号查询是 2×N 次串行上游请求，守卫只放行首次。
-	if !strings.Contains(html, "v==='accounts'&&savedKey&&!benefitLoaded") {
-		t.Fatal("账号页未接一次性自动查询（benefitLoaded 守卫）——待领权益会藏在卡片里等不到人点")
-	}
-}

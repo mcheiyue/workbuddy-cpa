@@ -27,7 +27,11 @@ func TestManagementRegisterReturnsRoutesAndResources(t *testing.T) {
 	}
 	var result struct {
 		Routes    []struct{ Method, Path string } `json:"routes"`
-		Resources []struct{ Path, Menu string }   `json:"resources"`
+		Resources []struct {
+			Path        string `json:"path"`
+			Menu        string `json:"menu"`
+			Description string `json:"description"`
+		} `json:"resources"`
 	}
 	if err := json.Unmarshal(envelope.Result, &result); err != nil {
 		t.Fatal(err)
@@ -44,8 +48,37 @@ func TestManagementRegisterReturnsRoutesAndResources(t *testing.T) {
 			t.Fatal("route path is empty")
 		}
 	}
-	if len(result.Resources) != 1 || result.Resources[0].Path != "/index.html" {
-		t.Fatalf("resources=%v, want [/index.html]", result.Resources)
+	registered := make(map[string]struct{}, len(result.Resources))
+	menuCount := 0
+	for _, resource := range result.Resources {
+		if resource.Path == "" {
+			t.Fatal("resource path is empty")
+		}
+		if _, exists := registered[resource.Path]; exists {
+			t.Fatalf("duplicate resource path=%q", resource.Path)
+		}
+		registered[resource.Path] = struct{}{}
+		if resource.Menu != "" {
+			menuCount++
+		}
+	}
+	if len(result.Resources) != len(workbuddyWebAssets) {
+		t.Fatalf("resources count=%d, want %d embedded resources", len(result.Resources), len(workbuddyWebAssets))
+	}
+	if _, ok := registered["/index.html"]; !ok {
+		t.Fatal("resources missing /index.html")
+	}
+	if menuCount != 1 {
+		t.Fatalf("menu resources=%d, want 1", menuCount)
+	}
+	for name := range workbuddyWebAssets {
+		resourcePath := webResourcePrefix + name
+		if name == "index.html" {
+			resourcePath = "/index.html"
+		}
+		if _, ok := registered[resourcePath]; !ok {
+			t.Fatalf("resources missing %q", resourcePath)
+		}
 	}
 }
 
