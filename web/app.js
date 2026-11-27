@@ -255,20 +255,26 @@
     var list = $('accountsList');
     var host = $('accountsState');
     var rows = filteredAccounts();
+    var focused = document.activeElement;
+    var focusIndex = list.contains(focused) ? focused.getAttribute('data-edit') : null;
     renderAccountSummary();
     if (!state.accounts.length) {
       panelEmpty(host, '还没有 WorkBuddy 账号', '使用「登录 / 添加账号」完成一次授权。');
       list.innerHTML = '';
-      return;
-    }
-    if (!rows.length) {
+    } else if (!rows.length) {
       panelEmpty(host, '没有匹配的账号', '换一个备注、昵称或 UID 再试。');
       list.innerHTML = '';
-      return;
+    } else {
+      panel(host, 'ready', '');
+      var head = '<div class="account-head" aria-hidden="true"><span>账号</span><span>状态</span><span>上次签到</span><span>操作</span></div>';
+      list.innerHTML = head + rows.map(accountRow).join('');
     }
-    panel(host, 'ready', '');
-    var head = '<div class="account-head" aria-hidden="true"><span>账号</span><span>状态</span><span>上次签到</span><span>操作</span></div>';
-    list.innerHTML = head + rows.map(accountRow).join('');
+    if (focusIndex !== null) {
+      var target = Array.from(list.querySelectorAll('[data-edit]')).find(function (button) {
+        return button.getAttribute('data-edit') === focusIndex;
+      }) || $('accountsRefresh');
+      target.focus({ preventScroll: true });
+    }
   }
 
   async function loadAccounts() {
@@ -341,6 +347,9 @@
       ? '该账号已禁用/受限，备注由插件保护，不能在此修改。'
       : '只影响面板显示，不改变昵称或登录方式。';
     $('editPriority').value = String(account.priority || 0);
+    // 每个编辑生命周期从可用按钮开始：上一次保存/删除的在途禁用不得遗留到本面板。
+    $('accountSave').disabled = false;
+    $('accountCancel').disabled = false;
     $('accountDelete').disabled = !account.file;
     $('accountDelete').title = account.file ? '' : '该账号没有宿主文件名，无法删除';
     setEditorError('');
@@ -351,12 +360,17 @@
 
   function closeAccountEditor() {
     var dialog = $('accountDialog');
+    var target = state.editorReturn;
+    var editor = state.editor;
+    if (target && !document.contains(target) && editor) {
+      target = Array.from(document.querySelectorAll('#accountsList [data-edit]')).find(function (button) {
+        return button.getAttribute('data-edit') === editor.authIndex;
+      }) || $('accountsRefresh');
+    }
     if (dialog.open) dialog.close();
     state.editor = null;
-    if (state.editorReturn && document.contains(state.editorReturn)) {
-      try { state.editorReturn.focus(); } catch (e) {}
-    }
     state.editorReturn = null;
+    if (target && document.contains(target)) target.focus({ preventScroll: true });
   }
 
   function setEditorError(message) {
@@ -412,8 +426,10 @@
       toast('账号已更新', 'ok');
       loadAccounts();
     } finally {
-      save.disabled = false;
-      cancel.disabled = false;
+      if (editor === state.editor && epoch === state.epoch) {
+        save.disabled = false;
+        cancel.disabled = false;
+      }
     }
   }
 
@@ -931,6 +947,10 @@
     Object.keys(state.seq).forEach(function (key) { state.seq[key]++; });
     state.epoch++;
     state.quotaPending = null;
+    ['quotaRefresh', 'checkinRun', 'benefitClaim'].forEach(function (id) {
+      var button = $(id);
+      if (button) button.disabled = false;
+    });
   }
 
   function resetData() {

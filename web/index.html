@@ -44,7 +44,7 @@
       <div>
         <p class="eyebrow">工作区</p>
         <h1 id="title-overview">概览</h1>
-        <p class="page-sub">账号、签到与 Credits 的本地观测摘要；不是上游权威数据。</p>
+        <p class="page-sub overview-description">账号、签到与 Credits 的本地观测摘要；不是上游权威数据。</p>
       </div>
       <div class="head-actions">
         <button class="button" type="button" id="overviewRefresh">刷新概览</button>
@@ -371,8 +371,8 @@
         <small>授权链接由宿主生成；本面板只接受 http/https 地址。</small>
       </label>
       <div class="login-progress" id="loginProgress" hidden>
-        <p id="loginMessage">等待授权…</p>
-        <p class="login-countdown">剩余 <span id="loginCountdown">05:00</span></p>
+        <p id="loginMessage" role="status" aria-live="polite" aria-atomic="true">等待授权…</p>
+        <p class="login-countdown">剩余 <span id="loginCountdown" role="timer" aria-label="授权剩余时间">05:00</span></p>
         <a id="loginManual" hidden target="_blank" rel="noopener">手动打开授权页</a>
       </div>
       <div class="inline-alert" id="loginError" role="alert" hidden></div>

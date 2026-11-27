@@ -401,7 +401,9 @@ test('layout: 六项任务导航、分区切换与宿主宽度适配', async (pa
     assert(await page.locator('[data-view-panel="' + view + '"]:not([hidden])').count() === 1, '视图 ' + view + ' 未唯一显示');
   }
   const font = await page.evaluate(() => getComputedStyle(document.body).fontSize);
-  assert(font === '15px', '桌面正文应为 15px，实际 ' + font);
+  assert(font === '14px', '桌面正文应为 14px，实际 ' + font);
+  const desktopThemeHeight = await page.locator('#themeSelect').evaluate((el) => el.getBoundingClientRect().height);
+  assert(desktopThemeHeight === 36, '桌面主题选择器应保持 36px，实际 ' + desktopThemeHeight);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert(overflow <= 1, '桌面出现页面级横向溢出: ' + overflow);
   await page.locator('#tasknav [data-view="accounts"]').click();
@@ -437,10 +439,18 @@ test('layout: 手机 390px 导航完整、正文 16px、控件 44px', async (pag
   }
   const font = await page.evaluate(() => getComputedStyle(document.body).fontSize);
   assert(font === '16px', '手机正文应为 16px，实际 ' + font);
+  const assertVisibleControls = async () => {
+    const controls = await page.locator('input:visible, select:visible, textarea:visible').evaluateAll((elements) => elements.map((el) => ({ id: el.id, height: el.getBoundingClientRect().height })));
+    assert(controls.every((item) => item.height >= 44), '手机可见表单控件应均 >=44px: ' + JSON.stringify(controls));
+  };
+  const overviewDescription = await page.locator('.overview-description').evaluate((el) => ({ height: el.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(el).lineHeight) }));
+  assert(overviewDescription.height <= overviewDescription.lineHeight * 2 + 1, '390px 概览说明不应出现第三行单字孤行');
+  await assertVisibleControls();
   await page.locator('#tasknav [data-view="accounts"]').click();
   await must(page, '#accountsList .account-row');
   const loginHeight = await page.locator('#loginOpen').evaluate((el) => el.getBoundingClientRect().height);
   assert(loginHeight >= 44, '手机主按钮高度应 >=44px，实际 ' + loginHeight);
+  await assertVisibleControls();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert(overflow <= 1, '手机出现页面级横向溢出: ' + overflow);
   await page.locator('#themeSelect').selectOption('light');
@@ -450,6 +460,17 @@ test('layout: 手机 390px 导航完整、正文 16px、控件 44px', async (pag
   await page.locator('#themeSelect').selectOption('light');
   await page.locator('[data-edit="p1"]').click();
   await must(page, '#accountDialog[open]');
+  const editorBody = page.locator('#accountDialog .sheet-body');
+  const editorSpacing = await page.evaluate(() => {
+    const body = document.querySelector('#accountDialog .sheet-body');
+    const foot = document.querySelector('#accountDialog .sheet-foot');
+    return { bottomPadding: parseFloat(getComputedStyle(body).paddingBottom), footerHeight: foot.getBoundingClientRect().height };
+  });
+  assert(editorSpacing.bottomPadding >= editorSpacing.footerHeight, '手机编辑器底部滚动空间应覆盖固定 footer: ' + JSON.stringify(editorSpacing));
+  await editorBody.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  const dangerBox = await page.locator('#accountDialog .danger-zone').boundingBox();
+  const bodyBox = await editorBody.boundingBox();
+  assert(dangerBox && bodyBox && dangerBox.y + dangerBox.height <= bodyBox.y + bodyBox.height + 1, '手机编辑器危险区滚到底部后仍被 footer 遮挡');
   await page.screenshot({ path: path.join(evidenceDir, 'editor-390-light.png') });
   await page.locator('#accountCancel').click();
 });
@@ -659,6 +680,102 @@ test('account editor: 保存期间的新草稿不得被旧提交结果丢弃', a
   await page.unroute('**' + AUTH + '/auth-files/fields');
 });
 
+test('account editor: 旧保存清理不得解锁新编辑面板的在途保存', async page => {
+  await page.locator('#tasknav [data-view="accounts"]').click();
+  await must(page, '[data-edit="p1"]');
+  await page.locator('[data-edit="p1"]').click();
+  await must(page, '#accountDialog[open]');
+  await page.locator('#editNote').fill('第一次提交');
+
+  let oldRoute;
+  let newRoute;
+  let oldReadyResolve;
+  let newReadyResolve;
+  const oldReady = new Promise((resolve) => { oldReadyResolve = resolve; });
+  const newReady = new Promise((resolve) => { newReadyResolve = resolve; });
+  await page.route('**' + AUTH + '/auth-files/fields', async (route) => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    if (route.request().postDataJSON().name === 'workbuddy-p1.json') {
+      oldRoute = route;
+      oldReadyResolve();
+    } else {
+      newRoute = route;
+      newReadyResolve();
+    }
+  });
+
+  await page.locator('#accountSave').click();
+  await oldReady;
+  await page.locator('#accountClose').click();
+  await page.locator('[data-edit="p2"]').click();
+  await must(page, '#accountDialog[open]');
+  assert(await page.locator('#accountSave').isEnabled(), '新编辑面板的保存按钮不应继承旧保存的禁用状态');
+  await page.locator('#editNote').fill('第二次提交');
+  await page.locator('#accountSave').click();
+  await newReady;
+  await oldRoute.continue();
+  await page.waitForFunction(() => document.querySelector('[data-account="p1"] .identity-copy strong').textContent === '第一次提交');
+  assert(await page.locator('#accountSave').isDisabled(), '旧保存结束不得解锁新保存按钮');
+  assert(await page.locator('#accountCancel').isDisabled(), '旧保存结束不得解锁新保存的取消按钮');
+  assert(await valueOf(page, '#editNote') === '第二次提交', '旧保存结束不得改写新草稿');
+  await newRoute.continue();
+  await page.waitForFunction(() => !document.querySelector('#accountDialog').open && document.querySelector('[data-account="p2"] .identity-copy strong').textContent === '第二次提交');
+  await page.unroute('**' + AUTH + '/auth-files/fields');
+});
+
+test('account editor: 保存后账号重绘把焦点放回已保存账号', async page => {
+  await page.locator('#tasknav [data-view="accounts"]').click();
+  await must(page, '[data-edit="p1"]');
+  await page.locator('[data-edit="p1"]').click();
+  await must(page, '#accountDialog[open]');
+  await page.locator('#editNote').fill('保存后回焦点');
+  const beforeAccounts = mock.completed.accounts;
+  const reload = waitReply((data) => data.type === 'accounts' && data.count > beforeAccounts, '保存后账号重绘');
+  await page.locator('#accountSave').click();
+  await reload;
+  await page.waitForFunction(() => document.querySelector('[data-account="p1"] .identity-copy strong').textContent === '保存后回焦点');
+  const focus = await page.evaluate(() => ({ id: document.activeElement && document.activeElement.id, edit: document.activeElement && document.activeElement.getAttribute('data-edit') }));
+  assert(focus.edit === 'p1', '保存后焦点应回到 p1 编辑按钮: ' + JSON.stringify(focus));
+});
+
+test('account editor: 删除后账号重绘把焦点放回刷新账号', async page => {
+  await page.locator('#tasknav [data-view="accounts"]').click();
+  await must(page, '[data-edit="p1"]');
+  await page.locator('[data-edit="p1"]').click();
+  await must(page, '#accountDialog[open]');
+  const beforeAccounts = mock.completed.accounts;
+  const reload = waitReply((data) => data.type === 'accounts' && data.count > beforeAccounts, '删除后账号重绘');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#accountDelete').click();
+  await reload;
+  await page.waitForFunction(() => !document.querySelector('[data-account="p1"]'));
+  const focus = await page.evaluate(() => ({ id: document.activeElement && document.activeElement.id, edit: document.activeElement && document.activeElement.getAttribute('data-edit') }));
+  assert(focus.id === 'accountsRefresh' && !focus.edit, '删除后焦点应回到刷新账号按钮: ' + JSON.stringify(focus));
+});
+
+test('account editor: 保存后的迟到列表刷新不得抢走搜索框焦点', async page => {
+  await page.locator('#tasknav [data-view="accounts"]').click();
+  await must(page, '[data-edit="p1"]');
+  await page.locator('[data-edit="p1"]').click();
+  await page.locator('#editNote').fill('刷新保留焦点');
+  let heldRoute;
+  let readyResolve;
+  const ready = new Promise((resolve) => { readyResolve = resolve; });
+  await page.route('**' + API + '/accounts', (route) => {
+    heldRoute = route;
+    readyResolve();
+  });
+  await page.locator('#accountSave').click();
+  await ready;
+  await page.waitForFunction(() => !document.querySelector('#accountDialog').open);
+  await page.locator('#accountFilter').fill('138');
+  await heldRoute.continue();
+  await page.waitForFunction(() => document.querySelector('[data-account="p1"] .identity-copy strong').textContent === '刷新保留焦点');
+  assert(await page.locator('#accountFilter').evaluate((element) => document.activeElement === element), '迟到账号刷新抢走了搜索框焦点');
+  assert(await valueOf(page, '#accountFilter') === '138', '迟到账号刷新改写了搜索输入');
+  await page.unroute('**' + API + '/accounts');
+});
+
 test('account editor: 同账号旧删除完成不得关闭重开的编辑面板', async page => {
   await page.locator('#tasknav [data-view="accounts"]').click();
   await must(page, '[data-edit="p1"]');
@@ -766,6 +883,76 @@ test('selectors: 刷新后保留选择；迟到的账号/配额响应不得覆�
   const bodyText = await textOf(page, '#quotaBody');
   assert(bodyText.includes('222') && !bodyText.includes('111'), '迟到响应覆盖了当前账号: ' + bodyText);
   assert(await valueOf(page, '#quotaSelect') === 'p2', '迟到响应改变了选择器');
+});
+
+test('epoch invalidation: 管理密钥变更后额度签到领取控件恢复可用', async page => {
+  await page.locator('#tasknav [data-view="quota"]').click();
+  await page.locator('#quotaSelect').selectOption('');
+  let releaseQuota;
+  let quotaReadyResolve;
+  const quotaReady = new Promise((resolve) => { quotaReadyResolve = resolve; });
+  let quotaRoute = null;
+  releaseQuota = () => quotaRoute.continue();
+  await page.route('**' + API + '/quota', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    quotaRoute = route;
+    quotaReadyResolve();
+  });
+  await page.locator('#quotaRefresh').click();
+  await quotaReady;
+
+  await page.locator('#checkinSelect').selectOption('p1');
+  let releaseCheckin;
+  let checkinReadyResolve;
+  const checkinReady = new Promise((resolve) => { checkinReadyResolve = resolve; });
+  let checkinRoute = null;
+  releaseCheckin = () => checkinRoute.continue();
+  await page.route('**' + API + '/checkin', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    checkinRoute = route;
+    checkinReadyResolve();
+  });
+  await page.locator('#checkinRun').click();
+  await checkinReady;
+
+  await page.locator('#benefitSelect').selectOption('p1');
+  let releaseClaim;
+  let claimReadyResolve;
+  const claimReady = new Promise((resolve) => { claimReadyResolve = resolve; });
+  let claimRoute = null;
+  releaseClaim = () => claimRoute.continue();
+  await page.route('**' + API + '/benefits/claim', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    claimRoute = route;
+    claimReadyResolve();
+  });
+  await page.locator('#benefitClaim').click();
+  await claimReady;
+  assert(await page.locator('#quotaRefresh').isDisabled(), '全量额度请求期间刷新按钮应禁用');
+  assert(await page.locator('#checkinRun').isDisabled(), '签到请求期间按钮应禁用');
+  assert(await page.locator('#benefitClaim').isDisabled(), '领取请求期间按钮应禁用');
+
+  await page.locator('#tasknav [data-view="settings"]').click();
+  await page.locator('#keyInput').fill('next-key');
+  mock.key = 'next-key';
+  const accounts = waitReply((data) => data.type === 'accounts' && data.key === 'next-key', 'epoch 变更后账号加载');
+  await page.locator('#keySave').click();
+  await accounts;
+  assert(await page.locator('#quotaRefresh').isEnabled(), '管理密钥变更后刷新额度按钮应恢复可用');
+  assert(await page.locator('#checkinRun').isEnabled(), '管理密钥变更后签到按钮应恢复可用');
+  assert(await page.locator('#benefitClaim').isEnabled(), '管理密钥变更后领取按钮应恢复可用');
+
+  const staleReplies = [API + '/quota', API + '/checkin', API + '/benefits/claim'].map((path) => page.waitForResponse((response) => response.url().endsWith(path) && response.status() === 401));
+  await Promise.all([releaseQuota(), releaseCheckin(), releaseClaim()]);
+  await Promise.all((await Promise.all(staleReplies)).map((response) => response.finished()));
+  await page.locator('#tasknav [data-view="quota"]').click();
+  assert(await page.locator('#quotaRefresh').isEnabled() && await page.locator('#checkinRun').isEnabled() && await page.locator('#benefitClaim').isEnabled(), '旧请求完成后操作控件仍应可用');
+  for (const body of ['quotaBody', 'checkinBody', 'benefitBody']) {
+    assert(await page.locator('#' + body + ' [data-state="idle"]').count() === 1, '旧请求改写了已重置的区域: ' + body);
+  }
+  await page.unroute('**' + API + '/quota');
+  await page.unroute('**' + API + '/checkin');
+  await page.unroute('**' + API + '/benefits/claim');
 });
 
 test('quota: 单账号重复点击只发一次查询', async page => {
@@ -918,10 +1105,11 @@ test('oauth: 取消后的旧轮询不得完成新登录', async page => {
 
 test('oauth: 取消可停轮询，等待上限 5 分钟', async page => {
   await openLoginPanel(page);
+  const firstPoll = waitOAuthPoll(1);
   await page.locator('#loginStart').click();
   await must(page, '#loginProgress:not([hidden])');
   await page.clock.runFor(2600);
-  const first = await waitOAuthPoll(1);
+  const first = await firstPoll;
   await page.locator('#loginCancel').click();
   await page.waitForFunction(() => document.querySelector('#loginDialog').open === false);
   const stoppedAt = mock.completed.oauthPolls;
@@ -940,6 +1128,38 @@ test('oauth: 取消可停轮询，等待上限 5 分钟', async page => {
   await page.clock.runFor(10000);
   assert(mock.completed.oauthPolls === timedOutAt, '超时后仍继续轮询');
   assert(await page.locator('#loginStart').isEnabled(), '超时后应允许重新开始');
+}, { clock: true });
+
+test('oauth accessibility: 状态礼貌原子播报且倒计时具名并隔离', async page => {
+  await openLoginPanel(page);
+  const semantics = await page.evaluate(() => {
+    const status = document.querySelector('#loginMessage');
+    const countdown = document.querySelector('#loginCountdown');
+    return {
+      statusRole: status.getAttribute('role'),
+      statusLive: status.getAttribute('aria-live'),
+      statusAtomic: status.getAttribute('aria-atomic'),
+      countdownRole: countdown.getAttribute('role'),
+      countdownLabel: countdown.getAttribute('aria-label'),
+      statusContainsCountdown: status.contains(countdown),
+      countdownLive: countdown.getAttribute('aria-live'),
+      countdownText: countdown.textContent.trim()
+    };
+  });
+  assert(semantics.statusRole === 'status' && semantics.statusLive === 'polite' && semantics.statusAtomic === 'true', '登录进度应为礼貌原子状态区: ' + JSON.stringify(semantics));
+  assert(semantics.countdownRole === 'timer' && semantics.countdownLabel === '授权剩余时间' && semantics.countdownLive === null && semantics.statusContainsCountdown === false, '倒计时应使用 timer 角色、具名且与礼貌状态区隔离: ' + JSON.stringify(semantics));
+  const firstPoll = waitOAuthPoll(1);
+  await page.locator('#loginStart').click();
+  await must(page, '#loginProgress:not([hidden])');
+  await page.clock.runFor(2600);
+  await firstPoll;
+  const activeSemantics = await page.evaluate(() => ({
+    status: document.querySelector('#loginMessage').getAttribute('aria-live'),
+    countdownLabel: document.querySelector('#loginCountdown').getAttribute('aria-label'),
+    countdown: document.querySelector('#loginCountdown').textContent.trim()
+  }));
+  assert(activeSemantics.status === 'polite' && activeSemantics.countdownLabel === '授权剩余时间' && activeSemantics.countdown !== '05:00', '异步授权期间应保留状态播报并更新独立具名倒计时: ' + JSON.stringify(activeSemantics));
+  await page.locator('#loginCancel').click();
 }, { clock: true });
 
 test('oauth: 成功刷新账号并关闭面板', async page => {
