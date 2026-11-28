@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
@@ -147,6 +149,10 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	var streamOffset int
 	streamFinished := make(chan struct{})
 	sourceFinished := make(chan struct{})
+	var streamCloseCount atomic.Int32
+	var sourceCloseCount atomic.Int32
+	var closeOnce sync.Once
+	var sourceCloseOnce sync.Once
 	orig := hostJSONCall
 	defer func() { hostJSONCall = orig }()
 	hostJSONCall = func(method string, payload any) (json.RawMessage, error) {
@@ -161,7 +167,8 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 			emittedChunks = append(emittedChunks, string(chunkBytes))
 			return json.Marshal(struct{}{})
 		case pluginabi.MethodHostStreamClose:
-			close(streamFinished)
+			streamCloseCount.Add(1)
+			closeOnce.Do(func() { close(streamFinished) })
 			return json.Marshal(struct{}{})
 		case pluginabi.MethodHostHTTPDo:
 			return mockHostHTTPDoRaw(method, payload, upstream)
@@ -198,7 +205,8 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 			}
 			return json.Marshal(map[string]any{"done": true})
 		case pluginabi.MethodHostHTTPStreamClose:
-			close(sourceFinished)
+			sourceCloseCount.Add(1)
+			sourceCloseOnce.Do(func() { close(sourceFinished) })
 			return json.Marshal(struct{}{})
 		}
 		return nil, fmt.Errorf("unexpected method: %s", method)
@@ -210,4 +218,10 @@ func TestExecutorExecuteStreamRPCTrack(t *testing.T) {
 	assertExecutorStreamReturnsBeforeCompletion(t, rawReq, streamFinished, sourceFinished)
 
 	assertAsyncStreamChunks(t, emittedChunks)
+	if got := streamCloseCount.Load(); got != 1 {
+		t.Fatalf("host stream close calls=%d, want 1", got)
+	}
+	if got := sourceCloseCount.Load(); got != 1 {
+		t.Fatalf("upstream stream close calls=%d, want 1", got)
+	}
 }

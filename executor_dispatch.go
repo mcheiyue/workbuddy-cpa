@@ -83,7 +83,10 @@ func executorExecute(ctx context.Context, req rpcExecutorRequest) (pluginapi.Exe
 	// Execute 强制 stream:true，上游返回 SSE 流；聚合为单个 chat.completion JSON。
 	aggregated, aggErr := wbexecutor.Aggregate(bytes.NewReader(raw))
 	if aggErr != nil {
-		// 聚合失败时回退到原始响应（上游可能直接返回 JSON）。
+		var directJSON map[string]json.RawMessage
+		if json.Unmarshal(raw, &directJSON) != nil || directJSON == nil {
+			return pluginapi.ExecutorResponse{}, aggErr
+		}
 		aggregated = raw
 	}
 	// 注入公开模型 ID（聚合后覆盖内部模型名）。
@@ -125,10 +128,6 @@ func executorExecuteStream(ctx context.Context, req rpcExecutorRequest) (plugina
 		if execErr := wbexecutor.ExecuteStream(ctx, cfg, execReq); execErr != nil {
 			streamErr := recordExecutorFailure(req, execErr)
 			failure := classifyExecutorError(streamErr)
-			if failure.code != pluginabi.ErrorCodeRequestScoped && failure.code != pluginabi.ErrorCodeModelNotFound {
-				hostStreamClose(req.StreamID, streamErr.Error())
-				return
-			}
 			callHostJSON(pluginabi.MethodHostStreamClose, map[string]any{
 				"stream_id": req.StreamID,
 				"error":     streamErr.Error(),

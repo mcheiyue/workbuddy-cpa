@@ -32,6 +32,7 @@ const (
 	ErrToolCallMismatch                // 11148 工具调用/结果历史错配（请求级确定性错误，换号无用，不罚号）
 	ErrTransport                       // 无 HTTP 响应的传输层失败（连接/DNS/读写中断），不罚账号
 	ErrGlobalQueue                     // 6020 全局排队，与账号无关，不罚账号
+	ErrStreamTruncated
 )
 
 func (k ErrKind) String() string {
@@ -68,6 +69,8 @@ func (k ErrKind) String() string {
 		return "transport"
 	case ErrGlobalQueue:
 		return "global_queue"
+	case ErrStreamTruncated:
+		return "stream_truncated"
 	default:
 		return "none"
 	}

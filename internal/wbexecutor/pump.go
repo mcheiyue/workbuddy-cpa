@@ -54,12 +54,10 @@ func pumpStream(cfg Config, authID string, streamID string, r io.Reader, publicM
 	// EOF 断流：缓存的 tool_calls（可能截断）不外发，随下方错误关闭一并作废。
 	hold.reset()
 	if !sawData && !sawDone {
-		cfg.StreamClose(streamID, "empty upstream stream")
 		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "upstream stream contained no valid data events"}
 	}
 	if !sawDone {
-		cfg.StreamClose(streamID, "stream ended without terminal event")
-		return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "stream ended without terminal event"}
+		return &ExecError{Kind: ErrStreamTruncated, Status: http.StatusBadGateway, Msg: "stream ended without terminal event"}
 	}
 	cfg.StreamClose(streamID, "")
 	return nil

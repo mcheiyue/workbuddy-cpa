@@ -170,7 +170,6 @@ func streamWithBody(ctx context.Context, cfg Config, req ExecuteRequest, body []
 	first, perr := br.ReadByte()
 	if perr != nil {
 		if errors.Is(perr, io.EOF) {
-			cfg.StreamClose(req.StreamID, "empty upstream stream")
 			return &ExecError{Kind: ErrServer, Status: http.StatusBadGateway, Msg: "upstream stream contained no valid data events"}
 		}
 		return &ExecError{Kind: ErrTransport, Status: http.StatusBadGateway, Msg: "stream read error"}

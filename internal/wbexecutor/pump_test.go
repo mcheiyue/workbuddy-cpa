@@ -156,18 +156,30 @@ func TestPumpStream_DoneWithoutFinishFlushesToolCalls(t *testing.T) {
 	}
 }
 
-// 无 [DONE] 断流：沿用既有错误关闭，且缓存的（可能截断的）tool_calls 不外发。
+// 无 [DONE] 断流：返回错误交由公共调用者关闭，且缓存的（可能截断的）tool_calls 不外发。
 func TestPumpStream_EofWithoutDoneDiscardsHeldToolCalls(t *testing.T) {
 	sse := `data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call1","type":"function","function":{"name":"f","arguments":"{\"q\":"}}]}}]}` + "\n\n"
 	res := &pumpResult{}
-	if execErr := res.run(t, sse); execErr == nil {
+	execErr := res.run(t, sse)
+	if execErr == nil {
 		t.Fatal("expected terminal-missing error")
 	}
-	if len(res.closeReasons) != 1 || res.closeReasons[0] == "" {
-		t.Fatalf("want error close reason, got %v", res.closeReasons)
+	if execErr.Kind != wbexecutor.ErrStreamTruncated {
+		t.Fatalf("kind=%v, want ErrStreamTruncated", execErr.Kind)
+	}
+	if len(res.closeReasons) != 0 {
+		t.Fatalf("pump must not close error streams, got %v", res.closeReasons)
 	}
 	args, _, _, _ := aggregatePump(t, res.emitted)
 	if len(args) != 0 {
 		t.Fatalf("held tool_calls must be discarded on broken stream, got %v", args)
+	}
+}
+
+func TestPumpStream_EmptyUpstreamRemainsServerError(t *testing.T) {
+	res := &pumpResult{}
+	execErr := res.run(t, "")
+	if execErr == nil || execErr.Kind != wbexecutor.ErrServer {
+		t.Fatalf("kind=%v, want ErrServer", execErr)
 	}
 }

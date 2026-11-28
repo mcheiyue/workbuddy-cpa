@@ -56,6 +56,14 @@ func classifyExecutorError(err error) *executorFailure {
 			status: http.StatusGatewayTimeout, cause: err,
 		}
 	}
+	if errors.Is(err, wbexecutor.ErrMissingTerminal) {
+		return &executorFailure{
+			code:    pluginabi.ErrorCodeStreamTruncated,
+			message: scrubErrorMessage(err.Error()),
+			status:  http.StatusBadGateway,
+			cause:   err,
+		}
+	}
 	return &executorFailure{code: "upstream_error", message: scrubErrorMessage(err.Error()), status: http.StatusBadGateway, cause: err}
 }
 

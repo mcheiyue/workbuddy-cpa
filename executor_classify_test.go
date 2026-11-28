@@ -40,6 +40,16 @@ func TestClassifyExecutorErrorZeroRetryAfterStaysZero(t *testing.T) {
 	}
 }
 
+func TestClassifyExecutorErrorMapsMissingTerminalToStreamTruncated(t *testing.T) {
+	failure := classifyExecutorError(wbexecutor.ErrMissingTerminal)
+	if failure.code != pluginabi.ErrorCodeStreamTruncated {
+		t.Fatalf("code=%q, want %q", failure.code, pluginabi.ErrorCodeStreamTruncated)
+	}
+	if failure.status != 502 {
+		t.Fatalf("status=%d, want 502", failure.status)
+	}
+}
+
 func TestClassifyExecutorErrorMapsGlobalQueueToRequestScopedEnvelope(t *testing.T) {
 	failure := classifyExecutorError(&wbexecutor.ExecError{
 		Kind:          wbexecutor.ErrGlobalQueue,
